@@ -244,7 +244,9 @@ public class HiveMetaStore extends ThriftHiveMetastore {
 
     public HMSHandler(String name, HiveConf conf) throws MetaException {
       super(name);
+      LOG.info("HMSHandler: 1");
       hiveConf = conf;
+      LOG.info("HMSHandler: 2");
       init();
     }
 
