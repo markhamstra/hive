@@ -111,7 +111,11 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
     if (localMetaStore) {
       // instantiate the metastore server handler directly instead of connecting
       // through the network
+        LOG.info("HiveMetaStoreClient: 1\n");
+        Thread.dumpStack();
+        LOG.info("***\n");
       client = new HiveMetaStore.HMSHandler("hive client", conf);
+        LOG.info("\n\nHiveMetaStoreClient: 2\n");
       isConnected = true;
       return;
     }
