@@ -638,6 +638,7 @@
   <target name="javadoc" depends="package" description="Generate Javadoc">
     <echo message="Project: ${ant.project.name}"/>
     <mkdir dir="${build.javadoc}"/>
+    <echo message="Creating javadocs in : ${build.javadoc}"/>
     <javadoc
       maxmemory="1024m"
       packagenames="org.apache.hadoop.hive.*"
@@ -1101,8 +1102,6 @@
     <copy file="${build.dir.hive}/shims/pom.xml"
           tofile="${mvn.pom.dir}/hive-shims-${version}.pom" />
 
-
-
     <!-- copy over licence -->
     <copy file="${hive.root}/LICENSE" todir="${mvn.license.dir}" />
 
@@ -1148,6 +1147,16 @@
                   type="jar.asc"/>
           <attach file="${mvn.pom.dir}/hive-${hive.project}-${version}.pom.asc"
                   type="pom.asc"/>
+          <attach file="${shark.deploy.javadoc.dir}/hive-${hive.project}-${version}-javadoc.jar"
+                  classifier="javadoc"/>
+          <attach file="${shark.deploy.javadoc.dir}/hive-${hive.project}-${version}-javadoc.jar.asc" 
+                  classifier="javadoc" 
+                  type="jar.asc"/>
+          <attach file="${shark.deploy.sources.dir}/hive-${hive.project}-${version}-sources.jar"
+                  classifier="sources"/>
+          <attach file="${shark.deploy.sources.dir}/hive-${hive.project}-${version}-sources.jar.asc" 
+                  classifier="sources" 
+                  type="jar.asc"/>
         </artifact:deploy>
       </then>
       <elseif>
@@ -1214,7 +1223,7 @@
       <param name="hive.project" value="shims" />
     </antcall>
 
-    <!-- Handle HCat separately -->
+    <!-- Handle HCat separately
     <if>
       <equals arg1="${mvn.publish.repo}" arg2="staging" />
       <then>
@@ -1226,7 +1235,7 @@
       <elseif>
         <equals arg1="${mvn.publish.repo}" arg2="local"/>
         <then>
-          <!-- NOP, HCat always publishes to the local repo -->
+        NOP, HCat always publishes to the local repo
         </then>
       </elseif>
       <else>
@@ -1236,6 +1245,7 @@
         </ant>
       </else>
     </if>
+    -->
   </target>
 
   <target name="maven-sign" if="staging">
@@ -1270,6 +1280,14 @@
         input.file="${mvn.pom.dir}/hive-anttasks-${version}.pom"
         output.file="${mvn.pom.dir}/hive-anttasks-${version}.pom.asc"
         gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-anttasks-${version}-sources.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-anttasks-${version}-sources.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-anttasks-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-anttasks-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
 
     <!-- hive-beeline -->
     <sign-artifact
@@ -1279,6 +1297,14 @@
     <sign-artifact
         input.file="${mvn.pom.dir}/hive-beeline-${version}.pom"
         output.file="${mvn.pom.dir}/hive-beeline-${version}.pom.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-beeline-${version}-sources.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-beeline-${version}-sources.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-beeline-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-beeline-${version}-javadoc.jar.asc"
         gpg.passphrase="${gpg.passphrase}"/>
 
     <!-- hive-cli -->
@@ -1290,6 +1316,14 @@
         input.file="${mvn.pom.dir}/hive-cli-${version}.pom"
         output.file="${mvn.pom.dir}/hive-cli-${version}.pom.asc"
         gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-cli-${version}-sources.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-cli-${version}-sources.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-cli-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-cli-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
 
     <!-- hive-common -->
     <sign-artifact
@@ -1299,6 +1333,14 @@
     <sign-artifact
         input.file="${mvn.pom.dir}/hive-common-${version}.pom"
         output.file="${mvn.pom.dir}/hive-common-${version}.pom.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-common-${version}-sources.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-common-${version}-sources.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-common-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-common-${version}-javadoc.jar.asc"
         gpg.passphrase="${gpg.passphrase}"/>
 
     <!-- hive-contrib -->
@@ -1310,6 +1352,14 @@
         input.file="${mvn.pom.dir}/hive-contrib-${version}.pom"
         output.file="${mvn.pom.dir}/hive-contrib-${version}.pom.asc"
         gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-contrib-${version}-sources.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-contrib-${version}-sources.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-contrib-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-contrib-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
 
     <!-- hive-exec -->
     <sign-artifact
@@ -1319,6 +1369,14 @@
     <sign-artifact
         input.file="${mvn.pom.dir}/hive-exec-${version}.pom"
         output.file="${mvn.pom.dir}/hive-exec-${version}.pom.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-exec-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-exec-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-exec-${version}-sources.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-exec-${version}-sources.jar.asc"
         gpg.passphrase="${gpg.passphrase}"/>
 
     <!-- hive-hbase-handler -->
@@ -1330,6 +1388,14 @@
         input.file="${mvn.pom.dir}/hive-hbase-handler-${version}.pom"
         output.file="${mvn.pom.dir}/hive-hbase-handler-${version}.pom.asc"
         gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-hbase-handler-${version}-sources.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-hbase-handler-${version}-sources.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-hbase-handler-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-hbase-handler-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
 
     <!-- hive-hwi -->
     <sign-artifact
@@ -1339,6 +1405,14 @@
     <sign-artifact
         input.file="${mvn.pom.dir}/hive-hwi-${version}.pom"
         output.file="${mvn.pom.dir}/hive-hwi-${version}.pom.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-hwi-${version}-sources.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-hwi-${version}-sources.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-hwi-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-hwi-${version}-javadoc.jar.asc"
         gpg.passphrase="${gpg.passphrase}"/>
 
     <!-- hive-jdbc -->
@@ -1350,6 +1424,14 @@
         input.file="${mvn.pom.dir}/hive-jdbc-${version}.pom"
         output.file="${mvn.pom.dir}/hive-jdbc-${version}.pom.asc"
         gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-jdbc-${version}-sources.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-jdbc-${version}-sources.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-jdbc-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-jdbc-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
 
     <!-- hive-metastore -->
     <sign-artifact
@@ -1359,6 +1441,14 @@
     <sign-artifact
         input.file="${mvn.pom.dir}/hive-metastore-${version}.pom"
         output.file="${mvn.pom.dir}/hive-metastore-${version}.pom.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-metastore-${version}-sources.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-metastore-${version}-sources.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-metastore-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-metastore-${version}-javadoc.jar.asc"
         gpg.passphrase="${gpg.passphrase}"/>
 
     <!-- hive-serde -->
@@ -1370,6 +1460,14 @@
         input.file="${mvn.pom.dir}/hive-serde-${version}.pom"
         output.file="${mvn.pom.dir}/hive-serde-${version}.pom.asc"
         gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-serde-${version}-sources.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-serde-${version}-sources.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-serde-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-serde-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
 
     <!-- hive-service -->
     <sign-artifact
@@ -1379,6 +1477,14 @@
     <sign-artifact
         input.file="${mvn.pom.dir}/hive-service-${version}.pom"
         output.file="${mvn.pom.dir}/hive-service-${version}.pom.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-service-${version}-sources.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-service-${version}-sources.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-service-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-service-${version}-javadoc.jar.asc"
         gpg.passphrase="${gpg.passphrase}"/>
 
     <!-- hive-shims -->
@@ -1390,6 +1496,15 @@
         input.file="${mvn.pom.dir}/hive-shims-${version}.pom"
         output.file="${mvn.pom.dir}/hive-shims-${version}.pom.asc"
         gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-shims-${version}-sources.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-shims-${version}-sources.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-shims-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-shims-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+
   </target>  
   
 </project>
