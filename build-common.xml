@@ -542,12 +542,25 @@
       <replacevalue>
         &lt;description&gt;Hive is a data warehouse infrastructure built on top of Hadoop see
         http://wiki.apache.org/hadoop/Hive &lt;/description&gt;
+        &lt;name&gt;AMPLab's Hive 0.11 &lt;/name&gt;
+        &lt;developers&gt;
+          &lt;developer&gt;
+            &lt;id&gt;rxin&lt;/id&gt;
+            &lt;name&gt;Reynold Xin&lt;/name&gt;
+            &lt;email&gt;reynoldx@gmail.com&lt;/email&gt;
+          &lt;/developer&gt;
+          &lt;developer&gt;
+            &lt;id&gt;harveyfeng&lt;/id&gt;
+            &lt;name&gt;Harvey Feng&lt;/name&gt;
+            &lt;email&gt;hyfeng224@gmail.com&lt;/email&gt;
+          &lt;/developer&gt;
+        &lt;/developers&gt;
         &lt;licenses&gt;
-        &lt;license&gt;
-        &lt;name&gt;The Apache Software License, Version 2.0&lt;/name&gt;
-        &lt;url&gt;http://www.apache.org/licenses/LICENSE-2.0.txt&lt;/url&gt;
-        &lt;distribution&gt;repo&lt;/distribution&gt;
-        &lt;/license&gt;
+          &lt;license&gt;
+            &lt;name&gt;The Apache Software License, Version 2.0&lt;/name&gt;
+            &lt;url&gt;http://www.apache.org/licenses/LICENSE-2.0.txt&lt;/url&gt;
+            &lt;distribution&gt;repo&lt;/distribution&gt;
+          &lt;/license&gt;
         &lt;/licenses&gt;
         &lt;scm&gt;
         &lt;url&gt;http://svn.apache.org/repos/asf/hive/&lt;/url&gt;

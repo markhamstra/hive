@@ -509,14 +509,6 @@
     <chmod perm="ugo+x" type="file" parallel="false">
       <fileset dir="${target.bin.dir}"/>
     </chmod>
-
-    <!-- Package the hcat stuff and pull it up into Hive's build dir -->
-    <ant antfile="${hive.root}/hcatalog/build.xml" target="package"
-        inheritAll="false"/>
-    <mkdir dir="${target.dir}/hcatalog"/>
-    <copy todir="${target.dir}/hcatalog">
-        <fileset dir="${hive.root}/hcatalog/build/hcatalog-${version}"/>
-    </copy>
   </target>
 
 
@@ -1223,29 +1215,6 @@
       <param name="hive.project" value="shims" />
     </antcall>
 
-    <!-- Handle HCat separately
-    <if>
-      <equals arg1="${mvn.publish.repo}" arg2="staging" />
-      <then>
-        <ant dir="hcatalog" target="mvn-deploy-signed">
-          <property name="mvn.deploy.repo.id" value="${mvn.staging.repo.id}"/>
-          <property name="mvn.deploy.repo.url" value="${mvn.staging.repo.url}"/>
-        </ant>
-      </then>
-      <elseif>
-        <equals arg1="${mvn.publish.repo}" arg2="local"/>
-        <then>
-        NOP, HCat always publishes to the local repo
-        </then>
-      </elseif>
-      <else>
-        <ant dir="hcatalog" target="mvn-deploy-signed">
-          <property name="mvn.deploy.repo.id" value="${mvn.deploy.id}"/>
-          <property name="mvn.deploy.repo.url" value="${mvn.deploy.url}"/>
-        </ant>
-      </else>
-    </if>
-    -->
   </target>
 
   <target name="maven-sign" if="staging">
