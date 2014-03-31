@@ -1214,7 +1214,6 @@
     <antcall target="maven-publish-artifact">
       <param name="hive.project" value="shims" />
     </antcall>
-
   </target>
 
   <target name="maven-sign" if="staging">
