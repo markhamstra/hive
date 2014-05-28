@@ -1,10 +1,4 @@
-drop table ss_src1;
-drop table ss_src2;
-drop table ss_src3;
-drop table ss_i_part;
-drop table ss_t3;
-drop table ss_t4;
-drop table ss_t5;
+USE default;
 
 set hive.input.format=org.apache.hadoop.hive.ql.io.CombineHiveInputFormat;
 set mapred.max.split.size=300;
@@ -12,7 +6,6 @@ set mapred.min.split.size=300;
 set mapred.min.split.size.per.node=300;
 set mapred.min.split.size.per.rack=300;
 set hive.merge.smallfiles.avgsize=1;
-set hive.sample.seednumber=7;
 
 -- INCLUDE_HADOOP_MAJOR_VERSIONS(0.20)
 -- This test sets mapred.max.split.size=300 and hive.merge.smallfiles.avgsize=1
@@ -28,6 +21,7 @@ insert overwrite table ss_i_part partition (p='1') select key, value from src;
 insert overwrite table ss_i_part partition (p='2') select key, value from src;
 insert overwrite table ss_i_part partition (p='3') select key, value from src;
 create table ss_src2 as select key, value from ss_i_part;
+
 select count(1) from ss_src2 tablesample(1 percent);
 
 -- sample first split
@@ -49,7 +43,6 @@ set hive.sample.seednumber=5;
 create table ss_t5 as select sum(key) % 397 as s from ss_src3 tablesample(1 percent) limit 10;
 select sum(s) from (select s from ss_t3 union all select s from ss_t4 union all select s from ss_t5) t;
 
-set hive.sample.seednumber=7;
 -- sample more than one split
 explain select count(distinct key) from ss_src2 tablesample(70 percent) limit 10;
 select count(distinct key) from ss_src2 tablesample(70 percent) limit 10;
@@ -86,11 +79,34 @@ set mapred.min.split.size.per.rack=300000;
 select count(1) from ss_src2 tablesample(1 percent);
 select count(1) from ss_src2 tablesample(50 percent);
 
+--HIVE-3401 more split samplings
 
-drop table ss_src1;
-drop table ss_src2;
-drop table ss_src3;
-drop table ss_i_part;
-drop table ss_t3;
-drop table ss_t4;
-drop table ss_t5;
+-- total length
+explain
+select count(1) from ss_src2 tablesample(100B);
+select count(1) from ss_src2 tablesample(100B);
+
+explain
+select count(1) from ss_src2 tablesample(1K);
+select count(1) from ss_src2 tablesample(1K);
+
+-- row per split
+explain
+select key, value from ss_src2 tablesample(0 ROWS);
+select key, value from ss_src2 tablesample(0 ROWS);
+
+explain
+select count(1) from ss_src2 tablesample(10 ROWS);
+select count(1) from ss_src2 tablesample(10 ROWS);
+
+explain
+select count(1) from ss_src2 tablesample(100 ROWS);
+select count(1) from ss_src2 tablesample(100 ROWS);
+
+set hive.fetch.task.conversion=more;
+select key from ss_src2 tablesample(200B);
+select key from ss_src2 tablesample(10 ROWS);
+
+set hive.input.format=org.apache.hadoop.hive.ql.io.HiveInputFormat;
+-- ROW type works with other input formats (others, don't)
+select count(1) from ss_src2 tablesample(10 ROWS);

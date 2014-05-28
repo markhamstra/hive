@@ -28,12 +28,6 @@
   <dependencies>
     <dependency org="edu.berkeley.cs.shark" name="hive-exec" rev="${version}"
                 conf="compile->default" />
-    <dependency org="commons-logging" name="commons-logging" rev="${commons-logging.version}"
-                transitive="false"/>
-    <dependency org="commons-logging" name="commons-logging-api" rev="${commons-logging-api.version}"
-                transitive="false"/>
-    <dependency org="log4j" name="log4j" rev="${log4j.version}"
-                transitive="false"/>
     <dependency org="org.apache.hbase" name="hbase" rev="${hbase.version}"
                 transitive="true">
       <artifact name="hbase" type="jar"/>
@@ -42,8 +36,9 @@
     </dependency>
     <dependency org="com.github.stephenc.high-scale-lib" name="high-scale-lib" rev="1.1.1"
                 transitive="false"/>
-    <dependency org="org.apache.zookeeper" name="zookeeper" rev="${zookeeper.version}"
-                transitive="false"/>
+    <dependency org="com.yammer.metrics" name="metrics-core" rev="${metrics-core.version}">
+      <exclude org="org.slf4j" module="slf4j-api"/><!--causes a dual slf4j presence otherwise-->
+    </dependency>
     <dependency org="org.codehaus.jackson" name="jackson-jaxrs" rev="${jackson.version}"/>
     <dependency org="org.codehaus.jackson" name="jackson-xc" rev="${jackson.version}"/>
 

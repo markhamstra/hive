@@ -194,7 +194,7 @@ public class HiveDatabaseMetaData implements java.sql.DatabaseMetaData {
           } else if (c == '_') {
             result.append('.');
           } else {
-            result.append(c);
+            result.append(Character.toLowerCase(c));
           }
         }
       }

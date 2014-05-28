@@ -40,24 +40,7 @@ to call at top-level: ant deploy-contrib compile-core-test
   <property name="shims.0.20S.hadoop.ivy.dir" value="${hive.root}/build/ivy/lib/hadoop0.20S.shim" />
   <property name="shims.0.23.hadoop.ivy.dir" value="${hive.root}/build/ivy/lib/hadoop0.23.shim" />
 
-  <target name="set-test-classpath">
-    <if>
-      <istrue value="${is.20}"/>
-      <then>
-        <path id="test.local.classpath">
-          <fileset dir="${shims.0.20S.hadoop.ivy.dir}" includes="hadoop-*.jar"/>
-          <path refid="test.classpath"/>
-        </path>
-      </then>
-      <else>
-        <path id="test.local.classpath">
-          <path refid="test.classpath"/>
-        </path>
-      </else>
-    </if>
-  </target>
-
-  <target name="build_shims"
+  <target name="build-shims"
           description="Build shims against a particular hadoop version">
     <echo message="Project: ${ant.project.name}"/>
     <echo message="Compiling ${sources} against hadoop ${hadoop.version.ant-internal} (${hadoop.root})"/>
@@ -92,7 +75,7 @@ to call at top-level: ant deploy-contrib compile-core-test
     <for param="shimName" list="${shims.include}">
       <sequential>
         <echo>Building shims @{shimName}</echo>
-        <antcall target="build_shims" inheritRefs="false" inheritAll="false">
+        <antcall target="build-shims" inheritRefs="false" inheritAll="false">
           <param name="hadoop.version.ant-internal" value="${shims.@{shimName}.version}" />
           <param name="sources" value="${shims.@{shimName}.sources}" />
           <param name="hadoop.ivy.dir" value="${shims.@{shimName}.hadoop.ivy.dir}" />
@@ -102,43 +85,14 @@ to call at top-level: ant deploy-contrib compile-core-test
     </for>  	
   </target>
 
-  <target name="source-jar">
-    <echo message="Project: ${ant.project.name}" />
-    <jar jarfile="${build.dir}/hive-${ant.project.name}-${version}-sources.jar">
-      <fileset dir="${shims.common.sources}" includes="**/*.java" />
-      <manifest>
-        <!-- Not putting these in their own manifest section, since that inserts
-             a new-line, which breaks the reading of the attributes. -->
-        <attribute name="Implementation-Title" value="Hive"/>
-        <attribute name="Implementation-Version" value="${version}"/>
-        <attribute name="Implementation-Vendor" value="Apache"/>
-      </manifest>
-      <metainf dir="${hive.root}" includes="LICENSE,NOTICE"/>
-    </jar>
-  </target>
-
   <target name="compile-test-worker"
-          description="worker to compile tests, takes worker.test.src.dir parameter">
+          description="worker to compile tests, takes worker.test.src.dir parameter"
+          depends="set-test-classpath">  
     <echo message="Project: ${ant.project.name}"/>
     <echo message="Compiling shim tests against hadoop ${hadoop.mr.rev}"/>
     <if>
       <available file="${worker.test.src.dir}" type="dir"/>
       <then>
-        <if>
-          <istrue value="${is.20}"/>
-          <then>
-            <path id="shims.test.classpath">
-              <fileset dir="${shims.0.20S.hadoop.ivy.dir}" includes="hadoop-*.jar"/>
-              <path refid="test.classpath"/>
-            </path>
-          </then>
-          <else>
-            <path id="shims.test.classpath">
-              <path refid="test.classpath"/>
-            </path>
-          </else>
-        </if>
-
         <echo message="        Test srcdir : ${worker.test.src.dir} "/>
         <javac
          encoding="${build.encoding}"
@@ -153,7 +107,7 @@ to call at top-level: ant deploy-contrib compile-core-test
          deprecation="${javac.deprecation}"
          includeantruntime="false">
           <compilerarg line="${javac.args} ${javac.args.warnings}" />
-          <classpath refid="shims.test.classpath"/>
+          <classpath refid="test.classpath"/>
         </javac>
       </then>
       <else>
@@ -183,47 +137,40 @@ to call at top-level: ant deploy-contrib compile-core-test
   <target name="compile-23-test" if="is.23">
     <antcall target="compile-test-worker" inheritRefs="false" inheritAll="false">
       <param name="worker.test.src.dir" value="${basedir}/src/0.23/test" />
-      <param name="is.20" value="${is.20}" />
     </antcall>
   </target>
 
   <target name="compile-20S-test" if="is.20S">
     <antcall target="compile-test-worker" inheritRefs="false" inheritAll="false">
       <param name="worker.test.src.dir" value="${basedir}/src/0.20S/test" />
-      <param name="is.20" value="${is.20}" />
     </antcall>
   </target>
 
   <target name="compile-20-test" if="is.20">
     <antcall target="compile-test-worker" inheritRefs="false" inheritAll="false">
       <param name="worker.test.src.dir" value="${basedir}/src/0.20/test" />
-      <param name="is.20" value="${is.20}" />
     </antcall>
    </target>
 
   <target name="compile-common-secure-test" if="is.secure">
-    <antcall target="compile-test-worker" inheritRefs="false" inheritAll="false">
-      <param name="worker.test.src.dir" value="${basedir}/src/common-secure/test" />
-      <param name="is.20" value="${is.20}" />
-    </antcall>
-  </target>
+     <antcall target="compile-test-worker" inheritRefs="false" inheritAll="false">
+       <param name="worker.test.src.dir" value="${basedir}/src/common-secure/test" />
+     </antcall>
+   </target>
 
   <target name="compile-common-test">
     <antcall target="compile-test-worker" inheritRefs="false" inheritAll="false">
       <param name="worker.test.src.dir" value="${basedir}/src/test" />
-      <param name="is.20" value="${is.20}" />
     </antcall>
     <antcall target="compile-test-worker" inheritRefs="false" inheritAll="false">
       <param name="worker.test.src.dir" value="${basedir}/src/common/test" />
-      <param name="is.20" value="${is.20}" />
     </antcall>
     <antcall target="compile-test-worker" inheritRefs="false" inheritAll="false">
       <param name="worker.test.src.dir" value="${test.build.src}" />
-      <param name="is.20" value="${is.20}" />
     </antcall>
   </target>
 
-  <target name="compile-test" depends="compile,ivy-retrieve-test,determine-versions-for-tests,set-test-classpath">
+  <target name="compile-test" depends="compile,ivy-retrieve-test,determine-versions-for-tests">
     <echo message="Project: ${ant.project.name}"/>
     <antcall target="compile-common-test" />
     <antcall target="compile-common-secure-test" />

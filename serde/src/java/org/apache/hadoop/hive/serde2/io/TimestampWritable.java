@@ -27,6 +27,7 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 
 import org.apache.commons.logging.Log;
+import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.serde2.ByteStream.Output;
 import org.apache.hadoop.hive.serde2.lazybinary.LazyBinaryUtils;
@@ -500,8 +501,8 @@ public class TimestampWritable implements WritableComparable<TimestampWritable> 
     return doubleToTimestamp((double) f);
   }
 
-  public static Timestamp decimalToTimestamp(BigDecimal d) {
-    BigDecimal nanoInstant = d.multiply(BILLION_BIG_DECIMAL);
+  public static Timestamp decimalToTimestamp(HiveDecimal d) {
+    BigDecimal nanoInstant = d.bigDecimalValue().multiply(BILLION_BIG_DECIMAL);
     int nanos = nanoInstant.remainder(BILLION_BIG_DECIMAL).intValue();
     if (nanos < 0) {
       nanos += 1000000000;

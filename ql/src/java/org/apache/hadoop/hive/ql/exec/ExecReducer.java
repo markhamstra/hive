@@ -25,6 +25,7 @@ import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -144,6 +145,8 @@ public class ExecReducer extends MapReduceBase implements Reducer {
       throw new RuntimeException(e);
     }
 
+    MapredContext.init(false, new JobConf(jc));
+
     // initialize reduce operator tree
     try {
       l4j.info(reducer.dump(0));
@@ -169,13 +172,16 @@ public class ExecReducer extends MapReduceBase implements Reducer {
 
   public void reduce(Object key, Iterator values, OutputCollector output,
       Reporter reporter) throws IOException {
-
+    if (reducer.getDone()) {
+      return;
+    }
     if (oc == null) {
       // propagete reporter and output collector to all operators
       oc = output;
       rp = reporter;
       reducer.setOutputCollector(oc);
       reducer.setReporter(rp);
+      MapredContext.get().setReporter(reporter);
     }
 
     try {
@@ -311,6 +317,8 @@ public class ExecReducer extends MapReduceBase implements Reducer {
         throw new RuntimeException("Hive Runtime Error while closing operators: "
             + e.getMessage(), e);
       }
+    } finally {
+      MapredContext.close();
     }
   }
 }

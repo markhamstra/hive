@@ -7,10 +7,16 @@ PREHOOK: query: describe ptestfilter
 PREHOOK: type: DESCTABLE
 POSTHOOK: query: describe ptestfilter
 POSTHOOK: type: DESCTABLE
-a	string	
-b	int	
-c	string	
-d	int	
+a                   	string              	None                
+b                   	int                 	None                
+c                   	string              	None                
+d                   	int                 	None                
+	 	 
+# Partition Information	 	 
+# col_name            	data_type           	comment             
+	 	 
+c                   	string              	None                
+d                   	int                 	None                
 PREHOOK: query: alter table ptestfilter add partition (c='US', d=1)
 PREHOOK: type: ALTERTABLE_ADDPARTS
 PREHOOK: Input: default@ptestfilter
@@ -31,4 +37,4 @@ POSTHOOK: query: show partitions ptestfilter
 POSTHOOK: type: SHOWPARTITIONS
 c=US/d=1
 c=US/d=2
-FAILED: Error in semantic analysis: Drop partitions for a non string partition columns is not allowed using non-equality
+FAILED: SemanticException [Error 10129]: Drop partitions for a non string partition columns is not allowed using non-equality

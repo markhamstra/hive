@@ -27,7 +27,8 @@ import java.util.Properties;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.serde.serdeConstants;
+import org.apache.hadoop.hive.serde2.AbstractSerDe;
 import org.apache.hadoop.hive.serde2.ByteStream;
 import org.apache.hadoop.hive.serde2.SerDe;
 import org.apache.hadoop.hive.serde2.SerDeException;
@@ -35,17 +36,18 @@ import org.apache.hadoop.hive.serde2.SerDeStats;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.UnionObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.typeinfo.StructTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.hadoop.io.BytesWritable;
+import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 
@@ -59,7 +61,7 @@ import org.apache.hadoop.io.Writable;
  * Also LazySimpleSerDe outputs typed columns instead of treating all columns as
  * String like MetadataTypedColumnsetSerDe.
  */
-public class LazySimpleSerDe implements SerDe {
+public class LazySimpleSerDe extends AbstractSerDe {
 
   public static final Log LOG = LogFactory.getLog(LazySimpleSerDe.class
       .getName());
@@ -176,6 +178,7 @@ public class LazySimpleSerDe implements SerDe {
    *
    * @see SerDe#initialize(Configuration, Properties)
    */
+  @Override
   public void initialize(Configuration job, Properties tbl)
       throws SerDeException {
 
@@ -212,22 +215,22 @@ public class LazySimpleSerDe implements SerDe {
     // should change this when we allow users to specify more than 10 levels
     // of separators through DDL.
     serdeParams.separators = new byte[8];
-    serdeParams.separators[0] = getByte(tbl.getProperty(Constants.FIELD_DELIM,
-        tbl.getProperty(Constants.SERIALIZATION_FORMAT)), DefaultSeparators[0]);
+    serdeParams.separators[0] = getByte(tbl.getProperty(serdeConstants.FIELD_DELIM,
+        tbl.getProperty(serdeConstants.SERIALIZATION_FORMAT)), DefaultSeparators[0]);
     serdeParams.separators[1] = getByte(tbl
-        .getProperty(Constants.COLLECTION_DELIM), DefaultSeparators[1]);
+        .getProperty(serdeConstants.COLLECTION_DELIM), DefaultSeparators[1]);
     serdeParams.separators[2] = getByte(
-        tbl.getProperty(Constants.MAPKEY_DELIM), DefaultSeparators[2]);
+        tbl.getProperty(serdeConstants.MAPKEY_DELIM), DefaultSeparators[2]);
     for (int i = 3; i < serdeParams.separators.length; i++) {
       serdeParams.separators[i] = (byte) (i + 1);
     }
 
     serdeParams.nullString = tbl.getProperty(
-        Constants.SERIALIZATION_NULL_FORMAT, "\\N");
+        serdeConstants.SERIALIZATION_NULL_FORMAT, "\\N");
     serdeParams.nullSequence = new Text(serdeParams.nullString);
 
     String lastColumnTakesRestString = tbl
-        .getProperty(Constants.SERIALIZATION_LAST_COLUMN_TAKES_REST);
+        .getProperty(serdeConstants.SERIALIZATION_LAST_COLUMN_TAKES_REST);
     serdeParams.lastColumnTakesRest = (lastColumnTakesRestString != null && lastColumnTakesRestString
         .equalsIgnoreCase("true"));
 
@@ -238,7 +241,7 @@ public class LazySimpleSerDe implements SerDe {
         serdeParams.columnNames, serdeParams.columnTypes);
 
     // Get the escape information
-    String escapeProperty = tbl.getProperty(Constants.ESCAPE_CHAR);
+    String escapeProperty = tbl.getProperty(serdeConstants.ESCAPE_CHAR);
     serdeParams.escaped = (escapeProperty != null);
     if (serdeParams.escaped) {
       serdeParams.escapeChar = getByte(escapeProperty, (byte) '\\');
@@ -271,6 +274,7 @@ public class LazySimpleSerDe implements SerDe {
    * @return The deserialized row Object.
    * @see SerDe#deserialize(Writable)
    */
+  @Override
   public Object deserialize(Writable field) throws SerDeException {
     if (byteArrayRef == null) {
       byteArrayRef = new ByteArrayRef();
@@ -296,6 +300,7 @@ public class LazySimpleSerDe implements SerDe {
   /**
    * Returns the ObjectInspector for the row.
    */
+  @Override
   public ObjectInspector getObjectInspector() throws SerDeException {
     return cachedObjectInspector;
   }
@@ -305,6 +310,7 @@ public class LazySimpleSerDe implements SerDe {
    *
    * @see SerDe#getSerializedClass()
    */
+  @Override
   public Class<? extends Writable> getSerializedClass() {
     return Text.class;
   }
@@ -323,6 +329,7 @@ public class LazySimpleSerDe implements SerDe {
    * @throws IOException
    * @see SerDe#serialize(Object, ObjectInspector)
    */
+  @Override
   public Writable serialize(Object obj, ObjectInspector objInspector)
       throws SerDeException {
 
@@ -415,7 +422,7 @@ public class LazySimpleSerDe implements SerDe {
       Text nullSequence, boolean escaped, byte escapeChar, boolean[] needsEscape)
       throws IOException {
 
-    if (obj == null) {
+    if (obj == null || obj instanceof NullWritable) {
       out.write(nullSequence.getBytes(), 0, nullSequence.getLength());
       return;
     }
@@ -516,6 +523,7 @@ public class LazySimpleSerDe implements SerDe {
    * Returns the statistics after (de)serialization)
    */
 
+  @Override
   public SerDeStats getSerDeStats() {
     // must be different
     assert (lastOperationSerialize != lastOperationDeserialize);

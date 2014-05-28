@@ -18,7 +18,6 @@
 
 package org.apache.hadoop.hive.ql.plan;
 
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -26,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -36,17 +36,22 @@ import org.apache.hadoop.hive.ql.exec.ColumnInfo;
 import org.apache.hadoop.hive.ql.exec.Operator;
 import org.apache.hadoop.hive.ql.exec.RowSchema;
 import org.apache.hadoop.hive.ql.exec.Utilities;
+import org.apache.hadoop.hive.ql.hooks.ReadEntity;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
 import org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat;
 import org.apache.hadoop.hive.ql.io.RCFileInputFormat;
 import org.apache.hadoop.hive.ql.io.RCFileOutputFormat;
+import org.apache.hadoop.hive.ql.io.orc.OrcInputFormat;
+import org.apache.hadoop.hive.ql.io.orc.OrcOutputFormat;
+import org.apache.hadoop.hive.ql.io.orc.OrcSerde;
 import org.apache.hadoop.hive.ql.metadata.Hive;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.HiveStorageHandler;
 import org.apache.hadoop.hive.ql.metadata.HiveUtils;
 import org.apache.hadoop.hive.ql.parse.SemanticException;
 import org.apache.hadoop.hive.ql.parse.TypeCheckProcFactory;
-import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.ql.session.SessionState;
+import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.DelimitedJSONSerDe;
 import org.apache.hadoop.hive.serde2.Deserializer;
 import org.apache.hadoop.hive.serde2.MetadataTypedColumnsetSerDe;
@@ -88,13 +93,63 @@ public final class PlanUtils {
     try {
       return new MapredWork("", new LinkedHashMap<String, ArrayList<String>>(),
         new LinkedHashMap<String, PartitionDesc>(),
-        new LinkedHashMap<String, Operator<? extends Serializable>>(),
+        new LinkedHashMap<String, Operator<? extends OperatorDesc>>(),
         new TableDesc(), new ArrayList<TableDesc>(), null, Integer.valueOf(1),
         null, Hive.get().getConf().getBoolVar(
           HiveConf.ConfVars.HIVE_COMBINE_INPUT_FORMAT_SUPPORTS_SPLITTABLE));
     } catch (HiveException ex) {
       throw new RuntimeException(ex);
     }
+  }
+
+  public static TableDesc getDefaultTableDesc(CreateTableDesc localDirectoryDesc,
+      String cols, String colTypes ) {
+    TableDesc tableDesc = getDefaultTableDesc(Integer.toString(Utilities.ctrlaCode), cols,
+        colTypes, false);;
+    if (localDirectoryDesc == null) {
+      return tableDesc;
+    }
+
+    try {
+      if (localDirectoryDesc.getFieldDelim() != null) {
+        tableDesc.getProperties().setProperty(
+            serdeConstants.FIELD_DELIM, localDirectoryDesc.getFieldDelim());
+        tableDesc.getProperties().setProperty(
+            serdeConstants.SERIALIZATION_FORMAT, localDirectoryDesc.getFieldDelim());
+      }
+      if (localDirectoryDesc.getLineDelim() != null) {
+        tableDesc.getProperties().setProperty(
+            serdeConstants.LINE_DELIM, localDirectoryDesc.getLineDelim());
+      }
+      if (localDirectoryDesc.getCollItemDelim() != null) {
+        tableDesc.getProperties().setProperty(
+            serdeConstants.COLLECTION_DELIM, localDirectoryDesc.getCollItemDelim());
+      }
+      if (localDirectoryDesc.getMapKeyDelim() != null) {
+        tableDesc.getProperties().setProperty(
+            serdeConstants.MAPKEY_DELIM, localDirectoryDesc.getMapKeyDelim());
+      }
+      if (localDirectoryDesc.getFieldEscape() !=null) {
+        tableDesc.getProperties().setProperty(
+            serdeConstants.ESCAPE_CHAR, localDirectoryDesc.getFieldEscape());
+      }
+      if (localDirectoryDesc.getSerName() != null) {
+        tableDesc.setSerdeClassName(localDirectoryDesc.getSerName());
+        tableDesc.getProperties().setProperty(
+            serdeConstants.SERIALIZATION_LIB, localDirectoryDesc.getSerName());
+        tableDesc.setDeserializerClass(
+            (Class<? extends Deserializer>) Class.forName(localDirectoryDesc.getSerName()));
+      }
+      if (localDirectoryDesc.getOutputFormat() != null){
+          tableDesc.setOutputFileFormatClass(Class.forName(localDirectoryDesc.getOutputFormat()));
+      }
+    } catch (ClassNotFoundException e) {
+      // mimicking behaviour in CreateTableDesc tableDesc creation
+      // returning null table description for output.
+      e.printStackTrace();
+      return null;
+    }
+    return tableDesc;
   }
 
   /**
@@ -172,19 +227,19 @@ public final class PlanUtils {
       boolean useDelimitedJSON, String fileFormat) {
 
     Properties properties = Utilities.makeProperties(
-        Constants.SERIALIZATION_FORMAT, separatorCode, Constants.LIST_COLUMNS,
+        serdeConstants.SERIALIZATION_FORMAT, separatorCode, serdeConstants.LIST_COLUMNS,
         columns);
 
     if (!separatorCode.equals(Integer.toString(Utilities.ctrlaCode))) {
-      properties.setProperty(Constants.FIELD_DELIM, separatorCode);
+      properties.setProperty(serdeConstants.FIELD_DELIM, separatorCode);
     }
 
     if (columnTypes != null) {
-      properties.setProperty(Constants.LIST_COLUMN_TYPES, columnTypes);
+      properties.setProperty(serdeConstants.LIST_COLUMN_TYPES, columnTypes);
     }
 
     if (lastColumnTakesRestOfTheLine) {
-      properties.setProperty(Constants.SERIALIZATION_LAST_COLUMN_TAKES_REST,
+      properties.setProperty(serdeConstants.SERIALIZATION_LAST_COLUMN_TAKES_REST,
           "true");
     }
 
@@ -206,6 +261,10 @@ public final class PlanUtils {
       inputFormat = RCFileInputFormat.class;
       outputFormat = RCFileOutputFormat.class;
       assert serdeClass == ColumnarSerDe.class;
+    } else if ("ORC".equalsIgnoreCase(fileFormat)) {
+      inputFormat = OrcInputFormat.class;
+      outputFormat = OrcOutputFormat.class;
+      assert serdeClass == OrcSerde.class;
     } else { // use TextFile by default
       inputFormat = TextInputFormat.class;
       outputFormat = IgnoreKeyTextOutputFormat.class;
@@ -217,7 +276,7 @@ public final class PlanUtils {
       String fileFormat) {
     TableDesc tblDesc = getTableDesc(LazySimpleSerDe.class, "" + Utilities.ctrlaCode, cols, colTypes,
         false, false, fileFormat);
-    tblDesc.getProperties().setProperty(Constants.ESCAPE_CHAR, "\\");
+    tblDesc.getProperties().setProperty(serdeConstants.ESCAPE_CHAR, "\\");
     return tblDesc;
   }
 
@@ -251,26 +310,26 @@ public final class PlanUtils {
       Properties properties = ret.getProperties();
 
       if (crtTblDesc.getCollItemDelim() != null) {
-        properties.setProperty(Constants.COLLECTION_DELIM, crtTblDesc
+        properties.setProperty(serdeConstants.COLLECTION_DELIM, crtTblDesc
             .getCollItemDelim());
       }
 
       if (crtTblDesc.getMapKeyDelim() != null) {
-        properties.setProperty(Constants.MAPKEY_DELIM, crtTblDesc
+        properties.setProperty(serdeConstants.MAPKEY_DELIM, crtTblDesc
             .getMapKeyDelim());
       }
 
       if (crtTblDesc.getFieldEscape() != null) {
-        properties.setProperty(Constants.ESCAPE_CHAR, crtTblDesc
+        properties.setProperty(serdeConstants.ESCAPE_CHAR, crtTblDesc
             .getFieldEscape());
       }
 
       if (crtTblDesc.getLineDelim() != null) {
-        properties.setProperty(Constants.LINE_DELIM, crtTblDesc.getLineDelim());
+        properties.setProperty(serdeConstants.LINE_DELIM, crtTblDesc.getLineDelim());
       }
 
       if (crtTblDesc.getTableName() != null && crtTblDesc.getDatabaseName() != null) {
-        properties.setProperty(org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_NAME,
+        properties.setProperty(org.apache.hadoop.hive.metastore.api.hive_metastoreConstants.META_TABLE_NAME,
             crtTblDesc.getDatabaseName() + "." + crtTblDesc.getTableName());
       }
 
@@ -300,7 +359,7 @@ public final class PlanUtils {
     return new TableDesc(MetadataTypedColumnsetSerDe.class,
         TextInputFormat.class, IgnoreKeyTextOutputFormat.class, Utilities
         .makeProperties(
-        org.apache.hadoop.hive.serde.Constants.SERIALIZATION_FORMAT,
+        org.apache.hadoop.hive.serde.serdeConstants.SERIALIZATION_FORMAT,
         separatorCode));
   }
 
@@ -311,11 +370,11 @@ public final class PlanUtils {
       String order) {
     return new TableDesc(BinarySortableSerDe.class,
         SequenceFileInputFormat.class, SequenceFileOutputFormat.class,
-        Utilities.makeProperties(Constants.LIST_COLUMNS, MetaStoreUtils
+        Utilities.makeProperties(serdeConstants.LIST_COLUMNS, MetaStoreUtils
         .getColumnNamesFromFieldSchema(fieldSchemas),
-        Constants.LIST_COLUMN_TYPES, MetaStoreUtils
+        serdeConstants.LIST_COLUMN_TYPES, MetaStoreUtils
         .getColumnTypesFromFieldSchema(fieldSchemas),
-        Constants.SERIALIZATION_SORT_ORDER, order));
+        serdeConstants.SERIALIZATION_SORT_ORDER, order));
   }
 
   /**
@@ -327,7 +386,7 @@ public final class PlanUtils {
         MetaStoreUtils.getColumnNamesFromFieldSchema(fieldSchemas),
         "columns.types", MetaStoreUtils
         .getColumnTypesFromFieldSchema(fieldSchemas),
-        Constants.ESCAPE_CHAR, "\\"));
+        serdeConstants.ESCAPE_CHAR, "\\"));
   }
 
   /**
@@ -340,7 +399,7 @@ public final class PlanUtils {
         MetaStoreUtils.getColumnNamesFromFieldSchema(fieldSchemas),
         "columns.types", MetaStoreUtils
         .getColumnTypesFromFieldSchema(fieldSchemas),
-        Constants.ESCAPE_CHAR, "\\"));
+        serdeConstants.ESCAPE_CHAR, "\\"));
   }
 
   /**
@@ -350,11 +409,11 @@ public final class PlanUtils {
       List<FieldSchema> fieldSchemas) {
     return new TableDesc(LazyBinarySerDe.class, SequenceFileInputFormat.class,
         SequenceFileOutputFormat.class, Utilities.makeProperties(
-        Constants.LIST_COLUMNS, MetaStoreUtils
+        serdeConstants.LIST_COLUMNS, MetaStoreUtils
         .getColumnNamesFromFieldSchema(fieldSchemas),
-        Constants.LIST_COLUMN_TYPES, MetaStoreUtils
+        serdeConstants.LIST_COLUMN_TYPES, MetaStoreUtils
         .getColumnTypesFromFieldSchema(fieldSchemas),
-        Constants.ESCAPE_CHAR, "\\"));
+        serdeConstants.ESCAPE_CHAR, "\\"));
   }
 
   /**
@@ -363,11 +422,11 @@ public final class PlanUtils {
   public static TableDesc getReduceValueTableDesc(List<FieldSchema> fieldSchemas) {
     return new TableDesc(LazyBinarySerDe.class, SequenceFileInputFormat.class,
         SequenceFileOutputFormat.class, Utilities.makeProperties(
-        Constants.LIST_COLUMNS, MetaStoreUtils
+        serdeConstants.LIST_COLUMNS, MetaStoreUtils
         .getColumnNamesFromFieldSchema(fieldSchemas),
-        Constants.LIST_COLUMN_TYPES, MetaStoreUtils
+        serdeConstants.LIST_COLUMN_TYPES, MetaStoreUtils
         .getColumnTypesFromFieldSchema(fieldSchemas),
-        Constants.ESCAPE_CHAR, "\\"));
+        serdeConstants.ESCAPE_CHAR, "\\"));
   }
 
   /**
@@ -504,7 +563,7 @@ public final class PlanUtils {
           new ArrayList<String>(),
         includeKeyCols ? outputColumnNames.subList(keyCols.size(),
             outputColumnNames.size()) : outputColumnNames,
-        includeKeyCols, tag, partitionCols, order, numReducers);
+        includeKeyCols, tag, partitionCols, order, numReducers, false);
   }
 
   /**
@@ -539,7 +598,8 @@ public final class PlanUtils {
       List<String> outputKeyColumnNames,
       List<String> outputValueColumnNames,
       boolean includeKeyCols, int tag,
-      ArrayList<ExprNodeDesc> partitionCols, String order, int numReducers) {
+      ArrayList<ExprNodeDesc> partitionCols, String order, int numReducers,
+      boolean optimizeSkew) {
     TableDesc keyTable = null;
     TableDesc valueTable = null;
     ArrayList<String> outputKeyCols = new ArrayList<String>();
@@ -565,7 +625,7 @@ public final class PlanUtils {
     return new ReduceSinkDesc(keyCols, numKeys, valueCols, outputKeyCols,
         distinctColIndices, outputValCols,
         tag, partitionCols, numReducers, keyTable,
-        valueTable);
+        valueTable, optimizeSkew);
   }
 
   /**
@@ -598,7 +658,7 @@ public final class PlanUtils {
         includeKey ?
             outputColumnNames.subList(keyCols.size(), outputColumnNames.size())
             : outputColumnNames,
-        includeKey, tag, numPartitionFields, numReducers);
+        includeKey, tag, numPartitionFields, numReducers, false);
   }
 
   /**
@@ -632,7 +692,8 @@ public final class PlanUtils {
       List<List<Integer>> distinctColIndices,
       List<String> outputKeyColumnNames, List<String> outputValueColumnNames,
       boolean includeKey, int tag,
-      int numPartitionFields, int numReducers) throws SemanticException {
+      int numPartitionFields, int numReducers,
+      boolean optimizeSkew) throws SemanticException {
     ArrayList<ExprNodeDesc> partitionCols = null;
 
     if (numPartitionFields >= keyCols.size()) {
@@ -655,7 +716,7 @@ public final class PlanUtils {
     }
     return getReduceSinkDesc(keyCols, numKeys, valueCols, distinctColIndices,
         outputKeyColumnNames, outputValueColumnNames, includeKey, tag,
-        partitionCols, order.toString(), numReducers);
+        partitionCols, order.toString(), numReducers, optimizeSkew);
   }
 
   /**
@@ -690,7 +751,7 @@ public final class PlanUtils {
         HiveUtils.getStorageHandler(
           Hive.get().getConf(),
           tableDesc.getProperties().getProperty(
-            org.apache.hadoop.hive.metastore.api.Constants.META_TABLE_STORAGE));
+            org.apache.hadoop.hive.metastore.api.hive_metastoreConstants.META_TABLE_STORAGE));
       if (storageHandler != null) {
         Map<String, String> jobProperties = new LinkedHashMap<String, String>();
         if(input) {
@@ -735,8 +796,63 @@ public final class PlanUtils {
     return val;
   }
 
+  /**
+   * Remove prefix from "Path -> Alias"
+   * This is required for testing.
+   * In order to verify that path is right, we need to display it in expected test result.
+   * But, mask pattern masks path with some patterns.
+   * So, we need to remove prefix from path which triggers mask pattern.
+   * @param origiKey
+   * @return
+   */
+  public static String removePrefixFromWarehouseConfig(String origiKey) {
+    String prefix = SessionState.get().getConf().getVar(HiveConf.ConfVars.METASTOREWAREHOUSE);
+    if ((prefix != null) && (prefix.length() > 0)) {
+      //Local file system is using pfile:/// {@link ProxyLocalFileSystem}
+      prefix = prefix.replace("pfile:///", "pfile:/");
+      int index = origiKey.indexOf(prefix);
+      if (index > -1) {
+        origiKey = origiKey.substring(index + prefix.length());
+      }
+    }
+    return origiKey;
+  }
+
   private PlanUtils() {
     // prevent instantiation
   }
 
+  // Add the input 'newInput' to the set of inputs for the query.
+  // The input may or may not be already present.
+  // The ReadEntity also contains the parents from it is derived (only populated
+  // in case of views). The equals method for ReadEntity does not compare the parents
+  // so that the same input with different parents cannot be added twice. If the input
+  // is already present, make sure the parents are added.
+  // Consider the query:
+  // select * from (select * from V2 union all select * from V3) subq;
+  // where both V2 and V3 depend on V1
+  // addInput would be called twice for V1 (one with parent V2 and the other with parent V3).
+  // When addInput is called for the first time for V1, V1 (parent V2) is added to inputs.
+  // When addInput is called for the second time for V1, the input V1 from inputs is picked up,
+  // and it's parents are enhanced to include V2 and V3
+  // The inputs will contain: (V2, no parent), (V3, no parent), (v1, parents(V2, v3))
+  public static ReadEntity addInput(Set<ReadEntity> inputs, ReadEntity newInput) {
+    // If the input is already present, make sure the new parent is added to the input.
+    if (inputs.contains(newInput)) {
+      for (ReadEntity input : inputs) {
+        if (input.equals(newInput)) {
+          if ((newInput.getParents() != null) && (!newInput.getParents().isEmpty())) {
+            input.getParents().addAll(newInput.getParents());
+          }
+          return input;
+        }
+      }
+      assert false;
+    } else {
+      inputs.add(newInput);
+      return newInput;
+    }
+    // make compile happy
+    return null;
+  }
 }

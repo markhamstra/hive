@@ -1,12 +1,12 @@
 
 set hive.auto.convert.join = true;
 
--- EXCLUDE_HADOOP_MAJOR_VERSIONS(0.20)
+-- EXCLUDE_HADOOP_MAJOR_VERSIONS(0.20, 0.20S)
 
 CREATE TABLE dest1(c1 INT, c2 STRING) STORED AS TEXTFILE;
 
 set mapreduce.framework.name=yarn;
-set mapred.jobtracker.address=localhost:58;
+set mapreduce.jobtracker.address=localhost:58;
 set hive.exec.mode.local.auto=true;
 
 explain

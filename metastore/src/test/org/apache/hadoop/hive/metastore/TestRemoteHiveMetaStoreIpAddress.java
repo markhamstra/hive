@@ -21,8 +21,8 @@ package org.apache.hadoop.hive.metastore;
 import junit.framework.TestCase;
 
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.api.Database;
+import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.util.StringUtils;
 
 /**
@@ -33,26 +33,9 @@ import org.apache.hadoop.util.StringUtils;
  * IpAddressListener
  */
 public class TestRemoteHiveMetaStoreIpAddress extends TestCase {
-  protected static final String METASTORE_PORT = "39083";
   private static boolean isServerStarted = false;
   private static HiveConf hiveConf;
   private static HiveMetaStoreClient msc;
-
-  private static class RunMS implements Runnable {
-
-      @Override
-      public void run() {
-        try {
-          System.setProperty(ConfVars.METASTORE_EVENT_LISTENERS.varname,
-              IpAddressListener.class.getName());
-          HiveMetaStore.main(new String[] { METASTORE_PORT });
-        } catch (Throwable e) {
-          e.printStackTrace(System.err);
-          assert false;
-        }
-      }
-
-    }
 
   @Override
   protected void setUp() throws Exception {
@@ -64,16 +47,13 @@ public class TestRemoteHiveMetaStoreIpAddress extends TestCase {
       return;
     }
 
-    System.out.println("Starting MetaStore Server on port " + METASTORE_PORT);
-    Thread t = new Thread(new RunMS());
-    t.start();
+    int port = MetaStoreUtils.findFreePort();
+    System.out.println("Starting MetaStore Server on port " + port);
+    MetaStoreUtils.startMetaStore(port, ShimLoader.getHadoopThriftAuthBridge());
     isServerStarted = true;
 
-    // Wait a little bit for the metastore to start. Should probably have
-    // a better way of detecting if the metastore has started?
-    Thread.sleep(5000);
     // This is default case with setugi off for both client and server
-    createClient();
+    createClient(port);
   }
 
   public void testIpAddress() throws Exception {
@@ -90,9 +70,8 @@ public class TestRemoteHiveMetaStoreIpAddress extends TestCase {
     }
   }
 
-  protected void createClient() throws Exception {
-    hiveConf.setBoolVar(ConfVars.METASTORE_MODE, false);
-    hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://localhost:" + METASTORE_PORT);
+  protected void createClient(int port) throws Exception {
+    hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://localhost:" + port);
     msc = new HiveMetaStoreClient(hiveConf);
   }
 }

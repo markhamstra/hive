@@ -25,6 +25,7 @@ import java.net.URISyntaxException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Progressable;
+import org.apache.hadoop.util.Shell;
 
 /****************************************************************
  * A FileSystem that can serve a given scheme/authority using some
@@ -42,14 +43,18 @@ public class ProxyFileSystem extends FilterFileSystem {
   protected String realAuthority;
   protected URI realUri;
 
-  
+
 
   private Path swizzleParamPath(Path p) {
-    return new Path (realScheme, realAuthority, p.toUri().getPath());
+    String pathUriString = p.toUri().toString();
+    URI newPathUri = URI.create(pathUriString);
+    return new Path (realScheme, realAuthority, newPathUri.getPath());
   }
 
   private Path swizzleReturnPath(Path p) {
-    return new Path (myScheme, myAuthority, p.toUri().getPath());
+    String pathUriString = p.toUri().toString();
+    URI newPathUri = URI.create(pathUriString);
+    return new Path (myScheme, myAuthority, newPathUri.getPath());
   }
 
   private FileStatus swizzleFileStatus(FileStatus orig, boolean isParam) {
@@ -66,7 +71,7 @@ public class ProxyFileSystem extends FilterFileSystem {
   public ProxyFileSystem() {
     throw new RuntimeException ("Unsupported constructor");
   }
-  
+
   public ProxyFileSystem(FileSystem fs) {
     throw new RuntimeException ("Unsupported constructor");
   }
@@ -86,7 +91,7 @@ public class ProxyFileSystem extends FilterFileSystem {
 
   /**
    * Create a proxy file system for fs.
-   * 
+   *
    * @param fs FileSystem to create proxy for
    * @param myUri URI to use as proxy. Only the scheme and authority from
    *              this are used right now
@@ -171,7 +176,7 @@ public class ProxyFileSystem extends FilterFileSystem {
   public boolean rename(Path src, Path dst) throws IOException {
     return super.rename(swizzleParamPath(src), swizzleParamPath(dst));
   }
-  
+
   @Override
   public boolean delete(Path f, boolean recursive) throws IOException {
     return super.delete(swizzleParamPath(f), recursive);
@@ -180,8 +185,8 @@ public class ProxyFileSystem extends FilterFileSystem {
   @Override
   public boolean deleteOnExit(Path f) throws IOException {
     return super.deleteOnExit(swizzleParamPath(f));
-  }    
-    
+  }
+
   @Override
   public FileStatus[] listStatus(Path f) throws IOException {
     FileStatus[] orig = super.listStatus(swizzleParamPath(f));
@@ -191,7 +196,7 @@ public class ProxyFileSystem extends FilterFileSystem {
     }
     return ret;
   }
-  
+
   @Override
   public Path getHomeDirectory() {
     return swizzleReturnPath(super.getHomeDirectory());
@@ -201,12 +206,12 @@ public class ProxyFileSystem extends FilterFileSystem {
   public void setWorkingDirectory(Path newDir) {
     super.setWorkingDirectory(swizzleParamPath(newDir));
   }
-  
+
   @Override
   public Path getWorkingDirectory() {
     return swizzleReturnPath(super.getWorkingDirectory());
   }
-  
+
   @Override
   public boolean mkdirs(Path f, FsPermission permission) throws IOException {
     return super.mkdirs(swizzleParamPath(f), permission);
@@ -219,14 +224,14 @@ public class ProxyFileSystem extends FilterFileSystem {
   }
 
   @Override
-  public void copyFromLocalFile(boolean delSrc, boolean overwrite, 
+  public void copyFromLocalFile(boolean delSrc, boolean overwrite,
                                 Path[] srcs, Path dst)
     throws IOException {
     super.copyFromLocalFile(delSrc, overwrite, srcs, swizzleParamPath(dst));
   }
-  
+
   @Override
-  public void copyFromLocalFile(boolean delSrc, boolean overwrite, 
+  public void copyFromLocalFile(boolean delSrc, boolean overwrite,
                                 Path src, Path dst)
     throws IOException {
     super.copyFromLocalFile(delSrc, overwrite, src, swizzleParamPath(dst));
@@ -264,7 +269,7 @@ public class ProxyFileSystem extends FilterFileSystem {
   public FileChecksum getFileChecksum(Path f) throws IOException {
     return super.getFileChecksum(swizzleParamPath(f));
   }
-  
+
   @Override
   public void setOwner(Path p, String username, String groupname
       ) throws IOException {
@@ -283,4 +288,4 @@ public class ProxyFileSystem extends FilterFileSystem {
     super.setPermission(swizzleParamPath(p), permission);
   }
 }
-  
+

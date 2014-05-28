@@ -236,9 +236,6 @@ STAGE PLANS:
                         expr: value
                         type: string
                   sort order: +
-                  Map-reduce partition columns:
-                        expr: value
-                        type: string
                   tag: -1
                   value expressions:
                         expr: 1
@@ -246,7 +243,7 @@ STAGE PLANS:
       Reduce Operator Tree:
         Group By Operator
           aggregations:
-                expr: count(VALUE._col0)
+                expr: count(1)
                 expr: count(DISTINCT KEY._col0:0._col0)
           bucketGroup: false
           mode: partial1
@@ -347,7 +344,7 @@ STAGE PLANS:
       Reduce Operator Tree:
         Group By Operator
           aggregations:
-                expr: count(VALUE._col0)
+                expr: count(1)
                 expr: count(DISTINCT KEY._col0:0._col0)
           bucketGroup: false
           mode: complete

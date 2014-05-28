@@ -1,4 +1,4 @@
--- INCLUDE_HADOOP_MAJOR_VERSIONS(0.20)
+-- INCLUDE_HADOOP_MAJOR_VERSIONS(0.20, 0.20S)
 
 create table nzhang_Tmp(a int, b string);
 select * from nzhang_Tmp;
@@ -57,3 +57,12 @@ create table nzhang_ctas5 row format delimited fields terminated by ',' lines te
 create table nzhang_ctas6 (key string, `to` string);
 insert overwrite table nzhang_ctas6 select key, value from src limit 10;
 create table nzhang_ctas7 as select key, `to` from nzhang_ctas6;
+
+
+
+
+
+
+
+
+

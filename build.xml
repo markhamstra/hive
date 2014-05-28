@@ -21,7 +21,8 @@
 <project name="hive" default="jar"
          xmlns:ivy="antlib:org.apache.ivy.ant"
          xmlns:artifact="urn:maven-artifact-ant"
-         xmlns:rat="antlib:org.apache.rat.anttasks" >
+         xmlns:rat="antlib:org.apache.rat.anttasks"
+         xmlns:maven="antlib:org.apache.maven.artifact.ant">
 
   <property name="hive.root" location="${basedir}"/>
   <property file="${hive.root}/build.properties"/>
@@ -69,6 +70,14 @@
     <istrue value="${include.postgres}"/>
   </condition>
 
+  <!-- Properties for maven repositories -->
+  <property name="mvn.staging.repo.id" value="sonatype-nexus-staging"/>
+  <property name="mvn.staging.repo.url"
+    value="https://oss.sonatype.org/service/local/staging/deploy/maven2"/>
+    <!-- value="https://repository.apache.org/service/local/staging/deploy/maven2" /> -->
+  <!-- Don't attach timestamp suffix to SNAPSHOT artifacts -->
+  <property name="uniqueVersion" value="false"/>
+
   <condition property="is-offline" value="true" else="false">
     <isset property="offline"/>
   </condition>
@@ -106,71 +115,24 @@
     </sequential>
   </macrodef>
 
-  <macrodef name="iterate-cpp">
-    <attribute name="target"/>
-    <sequential>
-      <subant target="@{target}">
-	<property name="thrift.home" value="${thrift.home}"/>
-        <property name="build.dir.hive" location="${build.dir.hive}"/>
-        <!-- TODO filelist dir="." files="metastore/build.xml,serde/build.xml,service/build.xml,odbc/build.xml"/-->
-        <filelist dir="." files="odbc/build.xml"/>
-      </subant>
-    </sequential>
-  </macrodef>
-
-  <macrodef name="iterate-test">
-    <attribute name="target"/>
-    <sequential>
-      <subant target="@{target}">
-	<property name="thrift.home" value="${thrift.home}"/>
-        <property name="build.dir.hive" location="${build.dir.hive}"/>
-        <filelist dir="." files="ql/build.xml,contrib/build.xml,hbase-handler/build.xml,hwi/build.xml,jdbc/build.xml,metastore/build.xml,odbc/build.xml,serde/build.xml,service/build.xml"/>
-      </subant>
-    </sequential>
-  </macrodef>
-
-  <macrodef name="iterate-test-subset">
-    <attribute name="target"/>
-    <attribute name="filelist"/>
-    <sequential>
-      <subant target="@{target}">
-        <property name="thrift.home" value="${thrift.home}"/>
-        <property name="build.dir.hive" location="${build.dir.hive}"/>
-        <filelist dir="." files="@{filelist}"/>
-      </subant>
-    </sequential>
-  </macrodef>
-
-  <macrodef name="iterate-thriftif">
-    <attribute name="target"/>
-    <sequential>
-      <subant target="@{target}">
-	<property name="thrift.home" value="${thrift.home}"/>
-        <property name="build.dir.hive" location="${build.dir.hive}"/>
-        <filelist dir="." files="ql/build.xml,service/build.xml,metastore/build.xml,serde/build.xml"/>
-      </subant>
-    </sequential>
-  </macrodef>
-
-  <macrodef name="iterate-all">
-    <attribute name="target"/>
-    <sequential>
-      <subant target="@{target}">
-        <property name="build.dir.hive" location="${build.dir.hive}"/>
-        <property name="is-offline" value="${is-offline}"/>
-        <filelist dir="." files="ant/build.xml,shims/build.xml,common/build.xml,serde/build.xml,metastore/build.xml,ql/build.xml,contrib/build.xml,service/build.xml,cli/build.xml,jdbc/build.xml,hwi/build.xml,hbase-handler/build.xml,ant/build.xml,pdk/build.xml,builtins/build.xml"/>
-      </subant>
-    </sequential>
-  </macrodef>
-
   <macrodef name="iterate">
     <attribute name="target"/>
+    <attribute name="iterate"/>
     <sequential>
-      <subant target="@{target}">
-        <property name="build.dir.hive" location="${build.dir.hive}"/>
-        <property name="is-offline" value="${is-offline}"/>
-        <filelist dir="." files="shims/build.xml,common/build.xml,serde/build.xml,metastore/build.xml,ql/build.xml,contrib/build.xml,service/build.xml,cli/build.xml,jdbc/build.xml,hwi/build.xml,hbase-handler/build.xml,pdk/build.xml,builtins/build.xml"/>
-      </subant>
+      <if>
+        <isset property="module"/>
+        <then> <var name="target.module" value="${module}"/>  </then>
+        <else> <var name="target.module" value="@{iterate}"/> </else>
+      </if>
+      <for list="${target.module}" param="module">
+        <sequential>
+          <subant buildpath="@{module}/build.xml" target="@{target}">
+            <property name="is-offline" value="${is-offline}"/>
+            <property name="thrift.home" value="${thrift.home}"/>
+            <property name="build.dir.hive" location="${build.dir.hive}"/>
+          </subant>
+        </sequential>
+      </for>
     </sequential>
   </macrodef>
 
@@ -192,8 +154,10 @@
     <pathelement location="${build.dir.hive}/common/classes"/>
     <pathelement location="${build.dir.hive}/serde/classes"/>
     <pathelement location="${build.dir.hive}/metastore/classes"/>
+    <pathelement location="${build.dir.hive}/hcatalog/classes"/>
     <pathelement location="${build.dir.hive}/ql/classes"/>
     <pathelement location="${build.dir.hive}/cli/classes"/>
+    <pathelement location="${build.dir.hive}/beeline/classes"/>
     <fileset dir="${hive.root}/data" includes="files/*.jar"/>
     <fileset dir="${hive.root}/ql" includes="lib/*.jar"/>
     <fileset dir="${hive.root}/cli" includes="lib/*.jar"/>
@@ -259,12 +223,12 @@
 
   <target name="init" depends="ivy-init-antlib,deploy-ant-tasks">
     <echo message="Project: ${ant.project.name}"/>
-    <iterate-all target="init"/>
+    <iterate target="init" iterate="${iterate.hive.all}"/>
   </target>
 
   <target name="test-init">
     <echo message="Project: ${ant.project.name}"/>
-    <iterate-all target="test-init"/>
+    <iterate target="test-init" iterate="${iterate.hive.all}"/>
   </target>
 
   <!-- target to deploy anttasks -->
@@ -293,54 +257,99 @@
       You must set thrift.home to the absolute path of your
       local Thrift installation.
     </fail>
-    <iterate-cpp target="compile-cpp"/>
+    <iterate target="compile-cpp" iterate="${iterate.hive.cpp}"/>
   </target>
 
   <target name="compile-cpp-clean"
           description="Clean CPP artifacts">
     <echo message="Project: ${ant.project.name}"/>
-    <iterate-cpp target="clean"/>
+    <iterate target="clean" iterate="${iterate.hive.cpp}"/>
   </target>
 
   <target name="compile" depends="compile-cpp">
     <echo message="Project: ${ant.project.name}"/>
-    <iterate target="compile"/>
+    <iterate target="compile" iterate="${iterate.hive.modules}"/>
   </target>
 
   <target name="thriftif">
     <echo message="Project: ${ant.project.name}"/>
-    <iterate-thriftif target="thriftif"/>
+    <iterate target="thriftif" iterate="${iterate.hive.thrift}"/>
+  </target>
+
+  <target name="protobuf">
+    <echo message="Project: ${ant.project.name}"/>
+    <iterate target="protobuf" iterate="${iterate.hive.protobuf}"/>
   </target>
 
   <target name="jar"
           depends="init"
           description="Build JAR artifacts">
     <echo message="Project: ${ant.project.name}"/>
-    <iterate target="jar"/>
+    <iterate target="jar" iterate="${iterate.hive.modules}"/>
   </target>
 
-  <target name="jar-test" depends="jar"
+  <target name="gen-test" depends="jar" description="Generate tests">
+    <iterate target="gen-test" iterate="${iterate.hive.tests}"/>
+  </target>
+  
+  <target name="jar-test" depends="gen-test"
           description="Build Java test artifacts">
     <echo message="Project: ${ant.project.name}"/>
-    <iterate-test target="compile-test"/>
-    <iterate-test target="test-jar"/>
+    <iterate target="compile-test" iterate="${iterate.hive.tests}"/>
+  </target>
+  
+  <target name="test" depends="clean-test,jar-test" description="Run tests">
+    <echo message="Project: ${ant.project.name}"/>
+    <if>
+      <isset property="module"/>
+      <else>
+        <antcall target="test-shims">
+          <param name="hadoop.version.ant-internal" value="${hadoop.security.version}" />
+        </antcall>
+      </else>
+    </if>
+    <condition property="target.module" value="${module}" else="${iterate.hive.test}">
+      <isset property="module"/>
+    </condition>
+    <for list="${target.module}" param="module">
+      <sequential>
+        <ant antfile="@{module}/build.xml" target="test" inheritAll="false" inheritRefs="true">
+          <property name="build.dir.hive" location="${build.dir.hive}"/>
+          <property name="is-offline" value="${is-offline}"/>
+        </ant>
+      </sequential>
+    </for>
   </target>
 
-  <target name="source-jar" depends="jar"
-          description="Build Java source artifacts">
+  <target name="test-shims">
     <echo message="Project: ${ant.project.name}"/>
-    <iterate target="source-jar"/>
-    <subant target="source-jar">
-      <fileset dir="." includes="ant/build.xml"/>
+    <subant target="test" failonerror="${failonerror}">
+      <property name="hadoop.version" value="${hadoop.security.version}"/>
+      <property name="hadoop.security.version" value="${hadoop.security.version}"/>
+      <fileset dir="${hive.root}/shims" includes="build.xml"/>
     </subant>
   </target>
+
+  <!-- create an html report from junit output files -->
+  <target name="testreport"
+          description="Generate JUnit HTML test report">
+    <echo message="Project: ${ant.project.name}"/>
+    <mkdir dir="${test.build.dir}"/>
+    <junitreport todir="${test.build.dir}">
+      <fileset dir="${build.dir.hive}">
+        <include name="**/TEST-*.xml"/>
+      </fileset>
+      <report format="noframes" todir="${test.build.dir}"/>
+    </junitreport>
+  </target>
+
 
   <target name="hive-exec-test-jar" depends="jar,mvn-taskdef"
           description="Build Java test artifacts for QL">
     <echo message="Project: ${ant.project.name}"/>
-    <iterate-test-subset filelist="ql/build.xml" target="gen-test"/>
-    <iterate-test-subset filelist="ql/build.xml" target="compile-test"/>
-    <iterate-test-subset filelist="ql/build.xml" target="hive-exec-test-jar"/>
+    <iterate iterate="ql" target="gen-test"/>
+    <iterate iterate="ql" target="compile-test"/>
+    <iterate iterate="ql" target="hive-exec-test-jar"/>
     <if>
       <isset property="mvn.publish.repoUrl" />
       <then>
@@ -370,73 +379,10 @@
     </if>
   </target>
 
-  <target name="echo-running-tests-in">
-    <tstamp>
-      <format property="current.time" pattern="yyyy-MM-dd HH:mm:ss,SSS" />
-    </tstamp>
-
-    <echo/>
-    <echo>-------------------------------------------------------------------------------</echo>
-    <echo>[${current.time}] Running tests in ${file}</echo>
-    <echo>-------------------------------------------------------------------------------</echo>
-    <echo/>
-  </target>
-
-  <target name="test" depends="clean-test,jar-test" description="Run tests">
-    <echo message="Project: ${ant.project.name}"/>
-    <antcall target="test-shims">
-      <param name="hadoop.version.ant-internal" value="${hadoop.security.version}" />
-    </antcall>
-    <for keepgoing="${test.continue.on.failure}" param="file">
-      <path>
-        <fileset dir="." includes="*/build.xml" excludes="ant/*,odbc/*,shims/*"/>
-      </path>
-      <sequential>
-        <antcall target="echo-running-tests-in">
-          <param name="file" value="@{file}"/>
-        </antcall>
-        <trycatch>
-          <try>
-            <ant antfile="@{file}" target="test" inheritAll="false" inheritRefs="true">
-              <property name="build.dir.hive" location="${build.dir.hive}"/>
-              <property name="is-offline" value="${is-offline}"/>
-            </ant>
-          </try>
-          <catch>
-            <echo>Some tests failed when building @{file}</echo>
-            <fail>Some tests failed when building @{file}</fail>
-          </catch>
-        </trycatch>
-      </sequential>
-    </for>
-  </target>
-
-  <target name="test-shims">
-    <echo message="Project: ${ant.project.name}"/>
-    <subant target="test">
-      <property name="hadoop.version" value="${hadoop.security.version}"/>
-      <property name="hadoop.security.version" value="${hadoop.security.version}"/>
-      <fileset dir="${hive.root}/shims" includes="build.xml"/>
-    </subant>
-  </target>
-
-  <!-- create an html report from junit output files -->
-  <target name="testreport"
-          description="Generate JUnit HTML test report">
-    <echo message="Project: ${ant.project.name}"/>
-    <mkdir dir="${test.build.dir}"/>
-    <junitreport todir="${test.build.dir}">
-      <fileset dir="${build.dir.hive}">
-        <include name="**/TEST-*.xml"/>
-      </fileset>
-      <report format="noframes" todir="${test.build.dir}"/>
-    </junitreport>
-  </target>
-
   <target name="clean-test"
           description="Clean test results">
     <echo message="Project: ${ant.project.name}"/>
-    <iterate target="clean-test"/>
+    <iterate target="clean-test" iterate="${iterate.hive.modules}"/>
     <delete dir="${build.dir.hive}/test"/>
     <delete dir="${hive.root}/ql/TempStatsStore"/>
   </target>
@@ -444,8 +390,8 @@
   <target name="clean"
           description="Clean build artifacts">
     <echo message="Project: ${ant.project.name}"/>
-    <iterate-all target="clean"/>
-    <iterate-cpp target="clean"/>
+    <iterate target="clean" iterate="${iterate.hive.all}"/>
+    <iterate target="clean" iterate="${iterate.hive.cpp}"/>
     <delete dir="${target.dir}"/>
     <antcall target="clean-online"/>
     <antcall target="clean-offline"/>
@@ -464,21 +410,9 @@
     </delete>
   </target>
 
-  <target name="very-clean" unless="offline" depends="ivy-clean-cache,clean"
+  <target name="very-clean" unless="offline" depends="clean,ivy-clean-cache"
           description="Clean build artifacts and flush Ivy cache" />
 
-  <!-- ====================================================== -->
-  <!-- Generate some of the test data.                        -->
-  <!-- ====================================================== -->
-  <target name="gen-testdata"
-          depends="jar"
-          description="Generate test data">
-    <echo message="Project: ${ant.project.name}"/>
-    <subant target="gen-testdata">
-      <property name="build.dir.hive" location="${build.dir.hive}"/>
-      <fileset dir="." includes="serde/build.xml"/>
-    </subant>
-  </target>
 
   <target name="package-cpp"
           depends="package,compile-cpp"
@@ -505,24 +439,22 @@
     <mkdir dir="${target.conf.dir}"/>
     <mkdir dir="${target.bin.dir}"/>
     <mkdir dir="${target.scripts.dir}/metastore/upgrade"/>
-    <mkdir dir="${target.scripts.dir}/pdk"/>
     <mkdir dir="${target.example.dir}"/>
     <mkdir dir="${target.example.dir}/files"/>
     <mkdir dir="${target.example.dir}/queries"/>
     <mkdir dir="${target.lib.dir}/py"/>
     <mkdir dir="${target.lib.dir}/php"/>
     <copy file="${hive.root}/bin/hive" todir="${target.bin.dir}"/>
-    <echo message="metastore.excludes = ${metastore.excludes}"/>
-    <copy todir="${target.scripts.dir}/metastore/upgrade">
-      <fileset dir="${hive.root}/metastore/scripts/upgrade" excludes="${metastore.excludes}"/>
-    </copy>
-    <copy todir="${target.scripts.dir}/pdk">
-      <fileset dir="${hive.root}/pdk/scripts" excludes="${vcs.excludes},README"/>
-    </copy>
+    <copy file="${hive.root}/bin/metatool" todir="${target.bin.dir}"/>
+    <copy file="${hive.root}/bin/beeline" todir="${target.bin.dir}"/>
+    <copy file="${hive.root}/bin/hiveserver2" todir="${target.bin.dir}"/>
+    <copy file="${hive.root}/bin/hive-config.sh" todir="${target.bin.dir}"/>
     <copy todir="${target.bin.dir}/ext">
       <fileset dir="${hive.root}/bin/ext" excludes="${vcs.excludes}"/>
     </copy>
-    <copy file="${hive.root}/bin/hive-config.sh" todir="${target.bin.dir}"/>
+    <copy todir="${target.scripts.dir}/metastore/upgrade">
+      <fileset dir="${hive.root}/metastore/scripts/upgrade" excludes="${vcs.excludes}"/>
+    </copy>
     <copy file="${basedir}/conf/hive-default.xml.template" todir="${target.conf.dir}">
       <filterset>
         <filter token="VERSION" value="${version}"/>
@@ -569,6 +501,9 @@
     <copy todir="${target.lib.dir}/py/hive_service">
       <fileset dir="${hive.root}/service/src/gen/thrift/gen-py/hive_service" excludes="${vcs.excludes}"/>
     </copy>
+    <copy todir="${target.lib.dir}/py/TCLIService">
+      <fileset dir="${hive.root}/service/src/gen/thrift/gen-py/TCLIService" excludes="${vcs.excludes}"/>
+    </copy>
     <copy todir="${target.lib.dir}/py/queryplan">
       <fileset dir="${hive.root}/ql/src/gen/thrift/gen-py/queryplan" excludes="${vcs.excludes}"/>
     </copy>
@@ -582,14 +517,15 @@
         <exclude name="build/hadoopcore/*.jar"/>
         <exclude name="**/ant-contrib*.jar"/>
         <exclude name="**/hive-anttasks*.jar"/>
+        <exclude name="**/hive-testutils*.jar"/>
       </fileset>
+      <fileset file="${build.dir.hive}/beeline/hive-beeline-${version}.jar"/>
       <fileset file="${build.dir.hive}/cli/hive-cli-${version}.jar"/>
       <fileset file="${build.dir.hive}/common/hive-common-${version}.jar"/>
       <fileset file="${build.dir.hive}/ql/hive-exec-${version}.jar"/>
       <fileset file="${build.dir.hive}/metastore/hive-metastore-${version}.jar"/>
       <fileset file="${build.dir.hive}/hwi/hive-hwi-${version}.war"/>
       <fileset file="${build.dir.hive}/contrib/hive-contrib-${version}.jar"/>
-      <fileset file="${build.dir.hive}/contrib/hive-hbase_handler-${version}.jar"/>
       <fileset dir="${build.dir.hive}/ivy/lib/default">
         <include name="*.jar"/>
         <exclude name="*.tar.gz"/>
@@ -601,14 +537,10 @@
         <exclude name="**/mockito*.jar"/>
         <exclude name="**/velocity*.jar"/>
         <exclude name="**/antlr-3*.jar"/>
-        <exclude name="**/antlr-2*.jar"/>
       </fileset>
     </copy>
     <copy todir="${target.example.dir}/files" preservelastmodified="true" flatten="true">
       <fileset dir="${test.data.dir}/files" includes="*.*" excludes="${vcs.excludes}"/>
-    </copy>
-    <copy todir="${target.example.dir}/test-plugin">
-      <fileset dir="${hive.root}/pdk/test-plugin"/>
     </copy>
     <copy file="${basedir}/README.txt" todir="${target.dir}">
       <filterset>
@@ -624,25 +556,13 @@
     <chmod perm="ugo+x" type="file" parallel="false">
       <fileset dir="${target.bin.dir}"/>
     </chmod>
-
-    <!-- create symlinks for libthrift.jar, libfb303.jar, etc. for backward compatibility -->
-    <symlink overwrite="true" link="${target.lib.dir}/libthrift.jar" resource="libthrift-${libthrift.version}.jar"/>
-    <symlink overwrite="true" link="${target.lib.dir}/libfb303.jar" resource="libfb303-${libfb303.version}.jar"/>
-    <symlink overwrite="true" link="${target.lib.dir}/hive_contrib.jar" resource="hive-contrib-${version}.jar"/>
-    <!-- special case because builtins compilation depends on packaging
-         up everything else first -->
-    <ant antfile="${hive.root}/builtins/build.xml" target="package"
-         inheritAll="false" />
-    <copy todir="${target.lib.dir}" preservelastmodified="true" flatten="true">
-      <fileset file="${build.dir.hive}/builtins/hive-builtins-${version}.jar"/>
-    </copy>
   </target>
 
 
   <!-- ====================================================== -->
   <!-- Generate files for eclipse.                            -->
   <!-- ====================================================== -->
-  <target name="eclipse-files" depends="init"
+  <target name="eclipse-files" depends="gen-test"
           description="Generate files for Eclipse">
     <echo message="Project: ${ant.project.name}"/>
     <condition property="hadoop.version.ant-internal" value="0.20">
@@ -670,6 +590,14 @@
       <matches string="${hadoop.version.ant-internal}" pattern="^0\.20\..*" />
     </condition>
 
+
+    <!-- Construct the classpath needed for testutils/hadoop launch script -->
+    <path id="hive.hadoop.test.classpath">
+      <fileset dir="${hive.root}/build/ivy/lib/hadoop0.${hadoop.mr.rev}.shim" includes="*.jar" />
+      <fileset dir="${hive.root}/build/ivy/lib/default" includes="*.jar" excludes="hive*.jar" />
+    </path>
+    <property name="hive.hadoop.test.classpath" refid="hive.hadoop.test.classpath"/>
+    
     <pathconvert property="eclipse.project">
       <path path="${basedir}"/>
       <regexpmapper from="^.*/([^/]+)$$" to="\1" handledirsep="yes"/>
@@ -688,6 +616,9 @@
         <filter token="JETTYUTILJAR" value="${jetty.util.jar}"/>
         <filter token="SERVLETAPIJAR" value="${servlet-api.jar}"/>
         <filter token="HIVE_VERSION" value="${version}"/>
+        <filter token="HIVE_HADOOP_TEST_CLASSPATH" value="${hive.hadoop.test.classpath}"/>
+        <filter token="HADOOP_BIN_PATH" value="${hive.root}/testutils/hadoop"/>
+        <filter token="JVM_ARGS" value="${eclipse.launch.jvm.args}"/>
       </filterset>
     </copy>
     <move todir="." includeemptydirs="false">
@@ -738,7 +669,7 @@
   <!-- Documentation                                                      -->
   <!-- ================================================================== -->
 
-  <target name="docs" description="Generate documentation">
+  <target name="docs" description="Generate documentation" depends="ivy-init-antlib">
     <echo message="Project: ${ant.project.name}"/>
     <antcall target="docs-anakia"/>
   </target>
@@ -747,6 +678,7 @@
       unless="skip.javadoc">
     <echo message="Project: ${ant.project.name}"/>
     <mkdir dir="${build.javadoc}"/>
+    <echo message="Creating javadocs in : ${build.javadoc}"/>
     <javadoc
       maxmemory="1024m"
       packagenames="org.apache.hadoop.hive.*"
@@ -776,20 +708,24 @@
       <packageset dir="metastore/src/test"/>
       <packageset dir="metastore/src/gen/thrift/gen-javabean"/>
       <packageset dir="metastore/src/model"/>
+      <packageset dir="hcatalog/src/java"/>
       <packageset dir="cli/src/java"/>
+      <packageset dir="beeline/src/java"/>
       <packageset dir="ql/src/java"/>
       <packageset dir="ql/src/test"/>
       <packageset dir="ql/src/gen/thrift/gen-javabean"/>
       <packageset dir="${build.dir.hive}/ql/gen/antlr/gen-java"/>
       <packageset dir="shims/src/common/java"/>
-      <packageset dir="pdk/src/java"/>
-      <packageset dir="builtins/src"/>
 
       <link href="${javadoc.link.java}"/>
 
       <classpath >
         <path refid="classpath" />
         <pathelement path="${java.class.path}"/>
+        <pathelement 
+           path="${build.ivy.lib.dir}/default/hadoop-core-${hadoop-0.20.version}.jar"/>
+        <pathelement 
+           path="${build.ivy.lib.dir}/default/hadoop-test-${hadoop-0.20.version}.jar"/>
       </classpath>
 
       <group title="Hive" packages="org.apache.*"/>
@@ -822,6 +758,7 @@
         <tarfileset dir="${hive.root}" mode="664" prefix="${tar.final.name}/src"
                     excludes="${vcs.excludes}">
           <exclude name="build/**" />
+          <exclude name="hcatalog/**/build/**" />
           <exclude name="bin/**" />
           <exclude name="**/py/**/*-remote" />
           <exclude name="data/scripts/**" />
@@ -831,6 +768,7 @@
         <tarfileset dir="${hive.root}" mode="755" prefix="${tar.final.name}/src"
                     excludes="${vcs.excludes}">
           <exclude name="build/**" />
+          <exclude name="hcatalog/**/build/**" />
           <include name="bin/**" />
           <include name="**/py/**/*-remote" />
           <include name="data/scripts/**" />
@@ -1033,8 +971,89 @@
     </available>
   </target>
 
+  <!-- ================================================================== -->
+  <!-- Findbugs                                                         -->
+  <!-- ================================================================== -->
+  
+
+  <target name="ivy-resolve-findbugs" depends="ivy-init-settings">
+    <echo message="Project: ${ant.project.name}" />
+    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="findbugs" log="${ivyresolvelog}" />
+  </target>
+  
+  <property name="ivy.findbugs.retrieve.pattern" value="[conf]/[artifact].[ext]" />
+  
+  <target name="ivy-retrieve-findbugs" depends="ivy-resolve-findbugs" description="Retrieve Ivy-managed artifacts for the checkstyle configurations">
+    <echo message="Project: ${ant.project.name}" />
+    <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings" pattern="${build.ivy.lib.dir}/${ivy.findbugs.retrieve.pattern}" log="${ivyresolvelog}" />
+  </target>
+  
+  <target name="check-for-findbugs">
+    <echo message="Project: ${ant.project.name}" />
+    <path id="findbugs.classpath">
+      <fileset dir="${build.ivy.lib.dir}/findbugs">
+	<include name="*.jar" />
+      </fileset>
+    </path>
+    <pathconvert property="findbugs.classpath" refid="findbugs.classpath" />
+  </target>
+  
+  <target name="findbugs" depends="init,ivy-retrieve-findbugs,check-for-findbugs" description="Run findbugs on source files">
+    <echo message="Project: ${ant.project.name}" />
+    
+    <property name="findbugs.conf.dir" location="${hive.root}/findbugs" />
+    <property name="findbugs.build.dir" location="${build.dir.hive}/findbugs" />
+    <property name="findbugs.exclude.file" value="${findbugs.conf.dir}/findbugs-exclude.xml"/>
+    <property name="findbugs.report.htmlfile" value="${findbugs.build.dir}/findbugs-report.html"/>
+    <property name="findbugs.report.xmlfile" value="${findbugs.build.dir}/findbugs-report.xml"/>
+    
+    <mkdir dir="${findbugs.build.dir}" />
+    <taskdef name="findbugs" classname="edu.umd.cs.findbugs.anttask.FindBugsTask" classpath="${build.ivy.lib.dir}/findbugs/findbugs-ant.jar" />
+    
+    <findbugs classpath="${findbugs.classpath}" pluginList="" effort="max" output="xml" outputFile="${findbugs.report.xmlfile}" excludeFilter="${findbugs.exclude.file}">
+      
+      <auxClasspath>
+	<fileset dir="${build.dir.hive}">
+	  <include name="**/*.jar" />
+	</fileset>
+      </auxClasspath>
+      
+      <sourcePath path="${hive.root}/ant" />
+      <sourcePath path="${hive.root}/beeline" />
+      <sourcePath path="${hive.root}/cli" />
+      <sourcePath path="${hive.root}/common" />
+      <sourcePath path="${hive.root}/contrib" />
+      <sourcePath path="${hive.root}/hbase-handler" />
+      <sourcePath path="${hive.root}/hwi" />
+      <sourcePath path="${hive.root}/jdbc" />
+      <sourcePath path="${hive.root}/metastore" />
+      <sourcePath path="${hive.root}/hcatalog" />
+      <sourcePath path="${hive.root}/odbc" />
+      <sourcePath path="${hive.root}/ql" />
+      <sourcePath path="${hive.root}/serde" />
+      <sourcePath path="${hive.root}/service" />
+      <sourcePath path="${hive.root}/shims" />
+      <class location="${build.dir.hive}/anttasks/classes" />
+      <class location="${build.dir.hive}/beeline/classes" />
+      <class location="${build.dir.hive}/cli/classes" />
+      <class location="${build.dir.hive}/common/classes" />
+      <class location="${build.dir.hive}/contrib/classes" />
+      <class location="${build.dir.hive}/hbase-handler/classes" />
+      <class location="${build.dir.hive}/hwi/classes" />
+      <class location="${build.dir.hive}/jdbc/classes" />
+      <class location="${build.dir.hive}/metastore/classes" />
+      <class location="${build.dir.hive}/hcatalog/classes" />
+      <class location="${build.dir.hive}/ql/classes" />
+      <class location="${build.dir.hive}/serde/classes" />
+      <class location="${build.dir.hive}/service/classes" />
+      <class location="${build.dir.hive}/shims/classes" />
+    </findbugs>
+    <!--
+        <xslt style="${findbugs.conf.dir}/default.xsl" in="${findbugs.report.xmlfile}"  out="${findbugs.report.htmlfile}"/>
+        -->
+  </target>
   <target name="ivy-docs" depends="ivy-init-settings"
-    description="Resolve, Retrieve Ivy-managed artifacts for docs configuration">
+          description="Resolve, Retrieve Ivy-managed artifacts for docs configuration">
     <echo message="Project: ${ant.project.name}"/>
     <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="docs"/>
     <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings"
@@ -1093,7 +1112,7 @@
 	     uri="urn:maven-artifact-ant" classpathref="maven-ant-tasks.classpath" />
   </target>
   
-  <target name="maven-build" depends="package,source-jar" description="Build Maven artifacts">
+  <target name="maven-build" depends="package" description="Build Maven artifacts">
     <echo message="Project: ${ant.project.name}"/>
     <!-- create jars, poms licences directory -->
     <mkdir dir="${mvn.jar.dir}" />
@@ -1101,10 +1120,12 @@
     <mkdir dir="${mvn.license.dir}" />
 
     <!-- call make pom on all projects that have ivy.xml -->
-    <iterate-all target="make-pom" />
+    <iterate target="make-pom" iterate="${iterate.hive.all}"/>
 
     <!-- copy the jars  -->
     <copy file="${build.dir.hive}/anttasks/hive-anttasks-${version}.jar"
+          todir="${mvn.jar.dir}" />
+    <copy file="${build.dir.hive}/beeline/hive-beeline-${version}.jar"
           todir="${mvn.jar.dir}" />
     <copy file="${build.dir.hive}/cli/hive-cli-${version}.jar"
           todir="${mvn.jar.dir}" />
@@ -1128,44 +1149,12 @@
           todir="${mvn.jar.dir}" />
     <copy file="${build.dir.hive}/shims/hive-shims-${version}.jar"
           todir="${mvn.jar.dir}" />
-    <copy file="${build.dir.hive}/pdk/hive-pdk-${version}.jar"
-          todir="${mvn.jar.dir}" />
-    <copy file="${build.dir.hive}/builtins/hive-builtins-${version}.jar"
-          todir="${mvn.jar.dir}" />
-
-    <!-- copy the source jars  -->
-    <copy file="${build.dir.hive}/anttasks/hive-anttasks-${version}-sources.jar"
-          todir="${mvn.jar.dir}" />
-    <copy file="${build.dir.hive}/cli/hive-cli-${version}-sources.jar"
-          todir="${mvn.jar.dir}" />
-    <copy file="${build.dir.hive}/common/hive-common-${version}-sources.jar"
-          todir="${mvn.jar.dir}" />
-    <copy file="${build.dir.hive}/contrib/hive-contrib-${version}-sources.jar"
-          todir="${mvn.jar.dir}" />
-    <copy file="${build.dir.hive}/hbase-handler/hive-hbase-handler-${version}-sources.jar"
-          todir="${mvn.jar.dir}" />
-    <copy file="${build.dir.hive}/hwi/hive-hwi-${version}-sources.jar"
-          todir="${mvn.jar.dir}" />
-    <copy file="${build.dir.hive}/jdbc/hive-jdbc-${version}-sources.jar"
-          todir="${mvn.jar.dir}" />
-    <copy file="${build.dir.hive}/metastore/hive-metastore-${version}-sources.jar"
-          todir="${mvn.jar.dir}" />
-    <copy file="${build.dir.hive}/ql/hive-exec-${version}-sources.jar"
-          todir="${mvn.jar.dir}" />
-    <copy file="${build.dir.hive}/serde/hive-serde-${version}-sources.jar"
-          todir="${mvn.jar.dir}" />
-    <copy file="${build.dir.hive}/service/hive-service-${version}-sources.jar"
-          todir="${mvn.jar.dir}" />
-    <copy file="${build.dir.hive}/shims/hive-shims-${version}-sources.jar"
-          todir="${mvn.jar.dir}" />
-    <copy file="${build.dir.hive}/pdk/hive-pdk-${version}-sources.jar"
-          todir="${mvn.jar.dir}" />
-    <copy file="${build.dir.hive}/builtins/hive-builtins-${version}-sources.jar"
-          todir="${mvn.jar.dir}" />
 
     <!-- copy over maven pom files created using the make-pom target and rename to maven convention -->
     <copy file="${build.dir.hive}/anttasks/pom.xml"
           tofile="${mvn.pom.dir}/hive-anttasks-${version}.pom" />
+    <copy file="${build.dir.hive}/beeline/pom.xml"
+          tofile="${mvn.pom.dir}/hive-beeline-${version}.pom" />
     <copy file="${build.dir.hive}/cli/pom.xml"
           tofile="${mvn.pom.dir}/hive-cli-${version}.pom" />
     <copy file="${build.dir.hive}/common/pom.xml"
@@ -1188,10 +1177,6 @@
           tofile="${mvn.pom.dir}/hive-service-${version}.pom" />
     <copy file="${build.dir.hive}/shims/pom.xml"
           tofile="${mvn.pom.dir}/hive-shims-${version}.pom" />
-    <copy file="${build.dir.hive}/pdk/pom.xml"
-          tofile="${mvn.pom.dir}/hive-pdk-${version}.pom" />
-    <copy file="${build.dir.hive}/builtins/pom.xml"
-          tofile="${mvn.pom.dir}/hive-builtins-${version}.pom" />
 
     <!-- copy over licence -->
     <copy file="${hive.root}/LICENSE" todir="${mvn.license.dir}" />
@@ -1221,6 +1206,7 @@
   <!-- Deploy a single artifact to the maven repository -->
   <target name="maven-publish-artifact">
     <echo message="Project: ${ant.project.name}"/>
+    <echo message="Maven pom dir: ${mvn.pom.dir}"/>
     <artifact:pom
        file="${mvn.pom.dir}/hive-${hive.project}-${version}.pom"
        id="hive.project.pom" />
@@ -1231,23 +1217,25 @@
         <artifact:deploy
             file="${mvn.jar.dir}/hive-${hive.project}-${version}.jar">
           <pom refid="hive.project.pom" />
-          <remoteRepository
-              id="apache.staging.https"
-              url="https://repository.apache.org/service/local/staging/deploy/maven2" />
+          <remoteRepository id="${mvn.staging.repo.id}"
+              url="${mvn.staging.repo.url}" />
           <attach file="${mvn.jar.dir}/hive-${hive.project}-${version}.jar.asc"
                   type="jar.asc"/>
           <attach file="${mvn.pom.dir}/hive-${hive.project}-${version}.pom.asc"
                   type="pom.asc"/>
+          <attach file="${shark.deploy.javadoc.dir}/hive-${hive.project}-${version}-javadoc.jar"
+                  classifier="javadoc"/>
+          <attach file="${shark.deploy.javadoc.dir}/hive-${hive.project}-${version}-javadoc.jar.asc" 
+                  classifier="javadoc" 
+                  type="jar.asc"/>
         </artifact:deploy>
       </then>
       <elseif>
         <equals arg1="${mvn.publish.repo}" arg2="local"/>
         <then>
-          <artifact:install 
+          <artifact:install
               file="${mvn.jar.dir}/hive-${hive.project}-${version}.jar">
             <pom refid="hive.project.pom" />
-            <attach file="${mvn.jar.dir}/hive-${hive.project}-${version}-sources.jar"
-              type="jar" classifier="sources"/>
           </artifact:install>
         </then>
       </elseif>
@@ -1263,29 +1251,13 @@
             <arg value="-Dfile=${mvn.jar.dir}/hive-${hive.project}-${version}.jar" />
           </artifact:mvn>
           <echo message="Deploying to ${mvn.publish.repo}, ${mvn.publish.repoUrl}"/>
-          <artifact:mvn>
-            <arg value="org.apache.maven.plugins:maven-deploy-plugin:2.6:deploy-file" />
-            <arg value="-DgroupId=edu.berkeley.cs.shark" />
-            <arg value="-DartifactId=hive-${hive.project}" />
-            <arg value="-Dversion=${version}" />
-            <arg value="-Durl=${mvn.publish.repoUrl}" />
-            <arg value="-DrepositoryId=${mvn.publish.repo}" />
-            <arg value="-DgeneratePom=false" />
-            <arg value="-Dfile=${mvn.jar.dir}/hive-${hive.project}-${version}-sources.jar" />
-            <arg value="-Dpackaging=java-source" />
-            <arg value="-Dclassifier=sources" />
-          </artifact:mvn>
         </then>
       </elseif>
       <else>
         <artifact:deploy
             file="${mvn.jar.dir}/hive-${hive.project}-${version}.jar">
           <pom refid="hive.project.pom" />
-          <remoteRepository
-              id="apache.snapshots.https"
-              url="https://repository.apache.org/content/repositories/snapshots" />
-          <attach file="${mvn.jar.dir}/hive-${hive.project}-${version}-sources.jar"
-            type="jar" classifier="sources"/>
+          <remoteRepository id="${mvn.deploy.id}" url="${mvn.deploy.url}"/>
         </artifact:deploy>
       </else>
     </if>
@@ -1295,8 +1267,12 @@
   <target name="maven-publish" depends="init,mvn-taskdef,maven-sign"
           description="Publish Maven artifacts">
     <echo message="Project: ${ant.project.name}"/>
+    <echo message="MVN Publish Repo: ${mvn.publish.repo}"/>
     <antcall target="maven-publish-artifact">
       <param name="hive.project" value="anttasks" />
+    </antcall>
+    <antcall target="maven-publish-artifact">
+      <param name="hive.project" value="beeline" />
     </antcall>
     <antcall target="maven-publish-artifact">
       <param name="hive.project" value="cli" />
@@ -1315,12 +1291,6 @@
     </antcall>
     <antcall target="maven-publish-artifact">
       <param name="hive.project" value="hwi" />
-    </antcall>
-    <antcall target="maven-publish-artifact">
-      <param name="hive.project" value="pdk" />
-    </antcall>
-    <antcall target="maven-publish-artifact">
-      <param name="hive.project" value="builtins" />
     </antcall>
     <antcall target="maven-publish-artifact">
       <param name="hive.project" value="jdbc" />
@@ -1361,6 +1331,8 @@
         </exec>
       </sequential>
     </macrodef>
+
+    <!-- hive-anttasks -->
     <sign-artifact
         input.file="${mvn.jar.dir}/hive-anttasks-${version}.jar"
         output.file="${mvn.jar.dir}/hive-anttasks-${version}.jar.asc"
@@ -1370,6 +1342,26 @@
         output.file="${mvn.pom.dir}/hive-anttasks-${version}.pom.asc"
         gpg.passphrase="${gpg.passphrase}"/>
     <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-anttasks-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-anttasks-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+
+    <!-- hive-beeline -->
+    <sign-artifact
+        input.file="${mvn.jar.dir}/hive-beeline-${version}.jar"
+        output.file="${mvn.jar.dir}/hive-beeline-${version}.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${mvn.pom.dir}/hive-beeline-${version}.pom"
+        output.file="${mvn.pom.dir}/hive-beeline-${version}.pom.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-beeline-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-beeline-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+
+    <!-- hive-cli -->
+    <sign-artifact
         input.file="${mvn.jar.dir}/hive-cli-${version}.jar"
         output.file="${mvn.jar.dir}/hive-cli-${version}.jar.asc"
         gpg.passphrase="${gpg.passphrase}"/>
@@ -1377,6 +1369,12 @@
         input.file="${mvn.pom.dir}/hive-cli-${version}.pom"
         output.file="${mvn.pom.dir}/hive-cli-${version}.pom.asc"
         gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-cli-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-cli-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+
+    <!-- hive-common -->
     <sign-artifact
         input.file="${mvn.jar.dir}/hive-common-${version}.jar"
         output.file="${mvn.jar.dir}/hive-common-${version}.jar.asc"
@@ -1386,6 +1384,12 @@
         output.file="${mvn.pom.dir}/hive-common-${version}.pom.asc"
         gpg.passphrase="${gpg.passphrase}"/>
     <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-common-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-common-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+
+    <!-- hive-contrib -->
+    <sign-artifact
         input.file="${mvn.jar.dir}/hive-contrib-${version}.jar"
         output.file="${mvn.jar.dir}/hive-contrib-${version}.jar.asc"
         gpg.passphrase="${gpg.passphrase}"/>
@@ -1394,37 +1398,11 @@
         output.file="${mvn.pom.dir}/hive-contrib-${version}.pom.asc"
         gpg.passphrase="${gpg.passphrase}"/>
     <sign-artifact
-        input.file="${mvn.jar.dir}/hive-hbase-handler-${version}.jar"
-        output.file="${mvn.jar.dir}/hive-hbase-handler-${version}.jar.asc"
+        input.file="${shark.deploy.javadoc.dir}/hive-contrib-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-contrib-${version}-javadoc.jar.asc"
         gpg.passphrase="${gpg.passphrase}"/>
-    <sign-artifact
-        input.file="${mvn.pom.dir}/hive-hbase-handler-${version}.pom"
-        output.file="${mvn.pom.dir}/hive-hbase-handler-${version}.pom.asc"
-        gpg.passphrase="${gpg.passphrase}"/>
-    <sign-artifact
-        input.file="${mvn.jar.dir}/hive-hwi-${version}.jar"
-        output.file="${mvn.jar.dir}/hive-hwi-${version}.jar.asc"
-        gpg.passphrase="${gpg.passphrase}"/>
-    <sign-artifact
-        input.file="${mvn.pom.dir}/hive-hwi-${version}.pom"
-        output.file="${mvn.pom.dir}/hive-hwi-${version}.pom.asc"
-        gpg.passphrase="${gpg.passphrase}"/>
-    <sign-artifact
-        input.file="${mvn.jar.dir}/hive-jdbc-${version}.jar"
-        output.file="${mvn.jar.dir}/hive-jdbc-${version}.jar.asc"
-        gpg.passphrase="${gpg.passphrase}"/>
-    <sign-artifact
-        input.file="${mvn.pom.dir}/hive-jdbc-${version}.pom"
-        output.file="${mvn.pom.dir}/hive-jdbc-${version}.pom.asc"
-        gpg.passphrase="${gpg.passphrase}"/>
-    <sign-artifact
-        input.file="${mvn.jar.dir}/hive-metastore-${version}.jar"
-        output.file="${mvn.jar.dir}/hive-metastore-${version}.jar.asc"
-        gpg.passphrase="${gpg.passphrase}"/>
-    <sign-artifact
-        input.file="${mvn.pom.dir}/hive-metastore-${version}.pom"
-        output.file="${mvn.pom.dir}/hive-metastore-${version}.pom.asc"
-        gpg.passphrase="${gpg.passphrase}"/>
+
+    <!-- hive-exec -->
     <sign-artifact
         input.file="${mvn.jar.dir}/hive-exec-${version}.jar"
         output.file="${mvn.jar.dir}/hive-exec-${version}.jar.asc"
@@ -1434,21 +1412,67 @@
         output.file="${mvn.pom.dir}/hive-exec-${version}.pom.asc"
         gpg.passphrase="${gpg.passphrase}"/>
     <sign-artifact
-        input.file="${mvn.jar.dir}/hive-pdk-${version}.jar"
-        output.file="${mvn.jar.dir}/hive-pdk-${version}.jar.asc"
+        input.file="${shark.deploy.javadoc.dir}/hive-exec-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-exec-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+
+    <!-- hive-hbase-handler -->
+    <sign-artifact
+        input.file="${mvn.jar.dir}/hive-hbase-handler-${version}.jar"
+        output.file="${mvn.jar.dir}/hive-hbase-handler-${version}.jar.asc"
         gpg.passphrase="${gpg.passphrase}"/>
     <sign-artifact
-        input.file="${mvn.pom.dir}/hive-pdk-${version}.pom"
-        output.file="${mvn.pom.dir}/hive-pdk-${version}.pom.asc"
+        input.file="${mvn.pom.dir}/hive-hbase-handler-${version}.pom"
+        output.file="${mvn.pom.dir}/hive-hbase-handler-${version}.pom.asc"
         gpg.passphrase="${gpg.passphrase}"/>
     <sign-artifact
-        input.file="${mvn.jar.dir}/hive-builtins-${version}.jar"
-        output.file="${mvn.jar.dir}/hive-builtins-${version}.jar.asc"
+        input.file="${shark.deploy.javadoc.dir}/hive-hbase-handler-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-hbase-handler-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+
+    <!-- hive-hwi -->
+    <sign-artifact
+        input.file="${mvn.jar.dir}/hive-hwi-${version}.jar"
+        output.file="${mvn.jar.dir}/hive-hwi-${version}.jar.asc"
         gpg.passphrase="${gpg.passphrase}"/>
     <sign-artifact
-        input.file="${mvn.pom.dir}/hive-builtins-${version}.pom"
-        output.file="${mvn.pom.dir}/hive-builtins-${version}.pom.asc"
+        input.file="${mvn.pom.dir}/hive-hwi-${version}.pom"
+        output.file="${mvn.pom.dir}/hive-hwi-${version}.pom.asc"
         gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-hwi-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-hwi-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+
+    <!-- hive-jdbc -->
+    <sign-artifact
+        input.file="${mvn.jar.dir}/hive-jdbc-${version}.jar"
+        output.file="${mvn.jar.dir}/hive-jdbc-${version}.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${mvn.pom.dir}/hive-jdbc-${version}.pom"
+        output.file="${mvn.pom.dir}/hive-jdbc-${version}.pom.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-jdbc-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-jdbc-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+
+    <!-- hive-metastore -->
+    <sign-artifact
+        input.file="${mvn.jar.dir}/hive-metastore-${version}.jar"
+        output.file="${mvn.jar.dir}/hive-metastore-${version}.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${mvn.pom.dir}/hive-metastore-${version}.pom"
+        output.file="${mvn.pom.dir}/hive-metastore-${version}.pom.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-metastore-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-metastore-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+
+    <!-- hive-serde -->
     <sign-artifact
         input.file="${mvn.jar.dir}/hive-serde-${version}.jar"
         output.file="${mvn.jar.dir}/hive-serde-${version}.jar.asc"
@@ -1458,6 +1482,12 @@
         output.file="${mvn.pom.dir}/hive-serde-${version}.pom.asc"
         gpg.passphrase="${gpg.passphrase}"/>
     <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-serde-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-serde-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+
+    <!-- hive-service -->
+    <sign-artifact
         input.file="${mvn.jar.dir}/hive-service-${version}.jar"
         output.file="${mvn.jar.dir}/hive-service-${version}.jar.asc"
         gpg.passphrase="${gpg.passphrase}"/>
@@ -1466,6 +1496,12 @@
         output.file="${mvn.pom.dir}/hive-service-${version}.pom.asc"
         gpg.passphrase="${gpg.passphrase}"/>
     <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-service-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-service-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+
+    <!-- hive-shims -->
+    <sign-artifact
         input.file="${mvn.jar.dir}/hive-shims-${version}.jar"
         output.file="${mvn.jar.dir}/hive-shims-${version}.jar.asc"
         gpg.passphrase="${gpg.passphrase}"/>
@@ -1473,6 +1509,11 @@
         input.file="${mvn.pom.dir}/hive-shims-${version}.pom"
         output.file="${mvn.pom.dir}/hive-shims-${version}.pom.asc"
         gpg.passphrase="${gpg.passphrase}"/>
+    <sign-artifact
+        input.file="${shark.deploy.javadoc.dir}/hive-shims-${version}-javadoc.jar"
+        output.file="${shark.deploy.javadoc.dir}/hive-shims-${version}-javadoc.jar.asc"
+        gpg.passphrase="${gpg.passphrase}"/>
+
   </target>  
   
 </project>

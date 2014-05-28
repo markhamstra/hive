@@ -29,9 +29,10 @@
     <dependency org="edu.berkeley.cs.shark" name="hive-cli" rev="${version}"
                 conf="compile->default" />
     <dependency org="org.mortbay.jetty" name="jetty" rev="${jetty.version}" />
-    <dependency org="commons-logging" name="commons-logging" rev="${commons-logging.version}"
-                transitive="false"/>
-    <dependency org="commons-logging" name="commons-logging-api" rev="${commons-logging-api.version}"
+
+    <!-- Test Dependencies -->
+    <dependency org="commons-httpclient" name="commons-httpclient" rev="${commons-httpclient.version}"
+                conf="test->default"
                 transitive="false"/>
     <dependency org="edu.berkeley.cs.shark" name="hive-builtins" rev="${version}"
                 conf="test->default" transitive="false"/>

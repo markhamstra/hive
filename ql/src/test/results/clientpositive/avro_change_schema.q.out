@@ -33,8 +33,8 @@ PREHOOK: query: DESCRIBE avro2
 PREHOOK: type: DESCTABLE
 POSTHOOK: query: DESCRIBE avro2
 POSTHOOK: type: DESCTABLE
-string1	string	from deserializer
-string2	string	from deserializer
+string1             	string              	from deserializer   
+string2             	string              	from deserializer   
 PREHOOK: query: ALTER TABLE avro2 SET TBLPROPERTIES ('avro.schema.literal'='{ "namespace": "org.apache.hive",
   "name": "second_schema",
   "type": "record",
@@ -61,6 +61,6 @@ PREHOOK: query: DESCRIBE avro2
 PREHOOK: type: DESCTABLE
 POSTHOOK: query: DESCRIBE avro2
 POSTHOOK: type: DESCTABLE
-int1	int	from deserializer
-float1	float	from deserializer
-double1	double	from deserializer
+int1                	int                 	from deserializer   
+float1              	float               	from deserializer   
+double1             	double              	from deserializer   

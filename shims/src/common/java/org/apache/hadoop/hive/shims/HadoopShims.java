@@ -21,6 +21,8 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.security.PrivilegedExceptionAction;
 import java.util.List;
 
@@ -111,6 +113,21 @@ public interface HadoopShims {
   long getAccessTime(FileStatus file);
 
   /**
+   * Returns a shim to wrap MiniMrCluster
+   */
+  public MiniMrShim getMiniMrCluster(Configuration conf, int numberOfTaskTrackers,
+                                     String nameNode, int numDir) throws IOException;
+
+  /**
+   * Shim for MiniMrCluster
+   */
+  public interface MiniMrShim {
+    public int getJobTrackerPort() throws UnsupportedOperationException;
+    public void shutdown() throws IOException;
+    public void setupConfiguration(Configuration conf);
+  }
+
+  /**
    * Returns a shim to wrap MiniDFSCluster. This is necessary since this class
    * was moved from org.apache.hadoop.dfs to org.apache.hadoop.hdfs
    */
@@ -159,6 +176,9 @@ public interface HadoopShims {
 
   int createHadoopArchive(Configuration conf, Path parentDir, Path destDir,
       String archiveName) throws Exception;
+
+  public URI getHarUri(URI original, URI base, URI originalBase)
+        throws URISyntaxException;
   /**
    * Hive uses side effect files exclusively for it's output. It also manages
    * the setup/cleanup/commit of output from the hive client. As a result it does
@@ -170,6 +190,14 @@ public interface HadoopShims {
   void prepareJobOutput(JobConf conf);
 
   /**
+   * Used by TaskLogProcessor to Remove HTML quoting from a string
+   * @param item the string to unquote
+   * @return the unquoted string
+   *
+   */
+  public String unquoteHtmlChars(String item);
+
+  /**
    * Get the UGI that the given job configuration will run as.
    *
    * In secure versions of Hadoop, this simply returns the current
@@ -179,15 +207,15 @@ public interface HadoopShims {
   public void closeAllForUGI(UserGroupInformation ugi);
 
   public UserGroupInformation getUGIForConf(Configuration conf) throws LoginException, IOException;
-
   /**
    * Used by metastore server to perform requested rpc in client context.
+   * @param <T>
    * @param ugi
    * @param pvea
    * @throws IOException
    * @throws InterruptedException
    */
-  public void doAs(UserGroupInformation ugi, PrivilegedExceptionAction<Void> pvea) throws
+  public <T> T doAs(UserGroupInformation ugi, PrivilegedExceptionAction<T> pvea) throws
     IOException, InterruptedException;
 
   /**
@@ -213,6 +241,12 @@ public interface HadoopShims {
   public boolean isSecureShimImpl();
 
   /**
+   * Return true if the hadoop configuration has security enabled
+   * @return
+   */
+  public boolean isSecurityEnabled();
+
+  /**
    * Get the string form of the token given a token signature.
    * The signature is used as the value of the "service" field in the token for lookup.
    * Ref: AbstractDelegationTokenSelector in Hadoop. If there exists such a token
@@ -228,6 +262,16 @@ public interface HadoopShims {
    * @throws IOException
    */
   String getTokenStrForm(String tokenSignature) throws IOException;
+
+  /**
+   * Add a delegation token to the given ugi
+   * @param ugi
+   * @param tokenStr
+   * @param tokenService
+   * @throws IOException
+   */
+  void setTokenStr(UserGroupInformation ugi, String tokenStr, String tokenService)
+    throws IOException;
 
 
   enum JobTrackerState { INITIALIZING, RUNNING };
@@ -275,7 +319,26 @@ public interface HadoopShims {
    * @return
    */
   public String getJobLauncherHttpAddress(Configuration conf);
-  
+
+
+ /**
+  *  Perform kerberos login using the given principal and keytab
+ * @throws IOException
+  */
+  public void loginUserFromKeytab(String principal, String keytabFile) throws IOException;
+
+  /**
+   * Move the directory/file to trash. In case of the symlinks or mount points, the file is
+   * moved to the trashbin in the actual volume of the path p being deleted
+   * @param fs
+   * @param path
+   * @param conf
+   * @return false if the item is already in the trash or trash is disabled
+   * @throws IOException
+   */
+  public boolean moveToAppropriateTrash(FileSystem fs, Path path, Configuration conf)
+          throws IOException;
+
   /**
    * Get the default block size for the path. FileSystem alone is not sufficient to
    * determine the same, as in case of CSMT the underlying file system determines that.
@@ -293,17 +356,13 @@ public interface HadoopShims {
    * @return
    */
   public short getDefaultReplication(FileSystem fs, Path path);
+
   /**
-   * Move the directory/file to trash. In case of the symlinks or mount points, the file is
-   * moved to the trashbin in the actual volume of the path p being deleted
-   * @param fs
-   * @param path
-   * @param conf
-   * @return false if the item is already in the trash or trash is disabled
-   * @throws IOException
+   * Create the proxy ugi for the given userid
+   * @param userName
+   * @return
    */
-  public boolean moveToAppropriateTrash(FileSystem fs, Path path, Configuration conf)
-          throws IOException;
+  UserGroupInformation createProxyUser(String userName) throws IOException;
 
  /**
   * InputSplitShim.
@@ -365,4 +424,5 @@ public interface HadoopShims {
     RecordReader getRecordReader(JobConf job, InputSplitShim split, Reporter reporter,
         Class<RecordReader<K, V>> rrClass) throws IOException;
   }
+
 }

@@ -19,6 +19,7 @@
 package org.apache.hadoop.hive.serde2;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.util.StringUtils;
@@ -30,13 +31,14 @@ import org.apache.hadoop.util.StringUtils;
 public final class ColumnProjectionUtils {
 
   public static final String READ_COLUMN_IDS_CONF_STR = "hive.io.file.readcolumn.ids";
+  public static final String READ_COLUMN_NAMES_CONF_STR = "hive.io.file.readcolumn.names";
 
   /**
    * Sets read columns' ids(start from zero) for RCFile's Reader. Once a column
    * is included in the list, RCFile's reader will not skip its value.
    * 
    */
-  public static void setReadColumnIDs(Configuration conf, ArrayList<Integer> ids) {
+  public static void setReadColumnIDs(Configuration conf, List<Integer> ids) {
     String id = toReadColumnIDString(ids);
     setReadColumnIDConf(conf, id);
   }
@@ -46,8 +48,7 @@ public final class ColumnProjectionUtils {
    * is included in the list, RCFile's reader will not skip its value.
    * 
    */
-  public static void appendReadColumnIDs(Configuration conf,
-      ArrayList<Integer> ids) {
+  public static void appendReadColumnIDs(Configuration conf, List<Integer> ids) {
     String id = toReadColumnIDString(ids);
     if (id != null) {
       String old = conf.get(READ_COLUMN_IDS_CONF_STR, null);
@@ -60,6 +61,24 @@ public final class ColumnProjectionUtils {
     }
   }
 
+  public static void appendReadColumnNames(Configuration conf,
+                                           List<String> cols) {
+    if (cols != null) {
+      String old = conf.get(READ_COLUMN_NAMES_CONF_STR, "");
+      StringBuilder result = new StringBuilder(old);
+      boolean first = old.isEmpty();
+      for(String col: cols) {
+        if (first) {
+          first = false;
+        } else {
+          result.append(',');
+        }
+        result.append(col);
+      }
+      conf.set(READ_COLUMN_NAMES_CONF_STR, result.toString());
+    }
+  }
+
   private static void setReadColumnIDConf(Configuration conf, String id) {
     if (id == null || id.length() <= 0) {
       conf.set(READ_COLUMN_IDS_CONF_STR, "");
@@ -69,7 +88,7 @@ public final class ColumnProjectionUtils {
     conf.set(READ_COLUMN_IDS_CONF_STR, id);
   }
 
-  private static String toReadColumnIDString(ArrayList<Integer> ids) {
+  private static String toReadColumnIDString(List<Integer> ids) {
     String id = null;
     if (ids != null) {
       for (int i = 0; i < ids.size(); i++) {

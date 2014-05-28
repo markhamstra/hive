@@ -18,15 +18,16 @@
 
 package org.apache.hadoop.hive.ql.plan;
 
-import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.List;
+
 
 /**
  * ReduceSinkDesc.
  *
  */
 @Explain(displayName = "Reduce Output Operator")
-public class ReduceSinkDesc implements Serializable {
+public class ReduceSinkDesc extends AbstractOperatorDesc {
   private static final long serialVersionUID = 1L;
   /**
    * Key columns are passed to reducer in the "key".
@@ -59,6 +60,11 @@ public class ReduceSinkDesc implements Serializable {
   private int numDistributionKeys;
 
   /**
+   * Whether optimized for skew data
+   */
+  private boolean optimizeSkew;
+
+  /**
    * The partition columns (CLUSTER BY or DISTRIBUTE BY in Hive language).
    * Partition columns decide the reducer that the current row goes to.
    * Partition columns are not passed to reducer.
@@ -77,7 +83,8 @@ public class ReduceSinkDesc implements Serializable {
       List<List<Integer>> distinctColumnIndices,
       java.util.ArrayList<java.lang.String> outputValueColumnNames, int tag,
       java.util.ArrayList<ExprNodeDesc> partitionCols, int numReducers,
-      final TableDesc keySerializeInfo, final TableDesc valueSerializeInfo) {
+      final TableDesc keySerializeInfo, final TableDesc valueSerializeInfo,
+      boolean optimizeSkew) {
     this.keyCols = keyCols;
     this.numDistributionKeys = numDistributionKeys;
     this.valueCols = valueCols;
@@ -89,6 +96,30 @@ public class ReduceSinkDesc implements Serializable {
     this.keySerializeInfo = keySerializeInfo;
     this.valueSerializeInfo = valueSerializeInfo;
     this.distinctColumnIndices = distinctColumnIndices;
+    this.optimizeSkew = optimizeSkew;
+  }
+
+  @Override
+  public Object clone() {
+    ReduceSinkDesc desc = new ReduceSinkDesc();
+    desc.setKeyCols((ArrayList<ExprNodeDesc>) getKeyCols().clone());
+    desc.setValueCols((ArrayList<ExprNodeDesc>) getValueCols().clone());
+    desc.setOutputKeyColumnNames((ArrayList<String>) getOutputKeyColumnNames().clone());
+    List<List<Integer>> distinctColumnIndicesClone = new ArrayList<List<Integer>>();
+    for (List<Integer> distinctColumnIndex : getDistinctColumnIndices()) {
+      List<Integer> tmp = new ArrayList<Integer>();
+      tmp.addAll(distinctColumnIndex);
+      distinctColumnIndicesClone.add(tmp);
+    }
+    desc.setDistinctColumnIndices(distinctColumnIndicesClone);
+    desc.setOutputValueColumnNames((ArrayList<String>) getOutputValueColumnNames().clone());
+    desc.setNumDistributionKeys(getNumDistributionKeys());
+    desc.setTag(getTag());
+    desc.setNumReducers(getNumReducers());
+    desc.setPartitionCols((ArrayList<ExprNodeDesc>) getPartitionCols().clone());
+    desc.setKeySerializeInfo((TableDesc) getKeySerializeInfo().clone());
+    desc.setValueSerializeInfo((TableDesc) getValueSerializeInfo().clone());
+    return desc;
   }
 
   public java.util.ArrayList<java.lang.String> getOutputKeyColumnNames() {
@@ -186,7 +217,7 @@ public class ReduceSinkDesc implements Serializable {
 
   /**
    * Returns the sort order of the key columns.
-   * 
+   *
    * @return null, which means ascending order for all key columns, or a String
    *         of the same length as key columns, that consists of only "+"
    *         (ascending order) and "-" (descending order).
@@ -194,12 +225,12 @@ public class ReduceSinkDesc implements Serializable {
   @Explain(displayName = "sort order")
   public String getOrder() {
     return keySerializeInfo.getProperties().getProperty(
-        org.apache.hadoop.hive.serde.Constants.SERIALIZATION_SORT_ORDER);
+        org.apache.hadoop.hive.serde.serdeConstants.SERIALIZATION_SORT_ORDER);
   }
-  
+
   public void setOrder(String orderStr) {
     keySerializeInfo.getProperties().setProperty(
-        org.apache.hadoop.hive.serde.Constants.SERIALIZATION_SORT_ORDER,
+        org.apache.hadoop.hive.serde.serdeConstants.SERIALIZATION_SORT_ORDER,
         orderStr);
   }
 
@@ -210,5 +241,13 @@ public class ReduceSinkDesc implements Serializable {
   public void setDistinctColumnIndices(
       List<List<Integer>> distinctColumnIndices) {
     this.distinctColumnIndices = distinctColumnIndices;
+  }
+
+  public boolean isOptimizeSkew() {
+    return optimizeSkew;
+  }
+
+  public void setOptimizeSkew(boolean optimizeSkew) {
+    this.optimizeSkew = optimizeSkew;
   }
 }

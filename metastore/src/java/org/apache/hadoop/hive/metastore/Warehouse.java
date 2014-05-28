@@ -18,12 +18,11 @@
 
 package org.apache.hadoop.hive.metastore;
 
+import static org.apache.hadoop.hive.metastore.MetaStoreUtils.DATABASE_WAREHOUSE_SUFFIX;
 import static org.apache.hadoop.hive.metastore.MetaStoreUtils.DEFAULT_DATABASE_NAME;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,7 +41,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.ProxyLocalFileSystem;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.hive.common.FileUtils;
 import org.apache.hadoop.hive.common.JavaUtils;
@@ -68,8 +66,6 @@ public class Warehouse {
   private boolean storageAuthCheck = false;
   private boolean inheritPerms = false;
 
-  private final ProxyLocalFileSystem proxyLocalFS = new ProxyLocalFileSystem();
-
   public Warehouse(Configuration conf) throws MetaException {
     this.conf = conf;
     whRootString = HiveConf.getVar(conf, HiveConf.ConfVars.METASTOREWAREHOUSE);
@@ -82,14 +78,6 @@ public class Warehouse {
         HiveConf.ConfVars.METASTORE_AUTHORIZATION_STORAGE_AUTH_CHECKS);
     inheritPerms = HiveConf.getBoolVar(conf,
         HiveConf.ConfVars.HIVE_WAREHOUSE_SUBDIR_INHERIT_PERMS);
-
-    try {
-      proxyLocalFS.initialize(new URI("pfile:///"), conf);
-    } catch (IOException e) {
-      MetaStoreUtils.logAndThrowMetaException(e);
-    } catch (URISyntaxException e) {
-      MetaStoreUtils.logAndThrowMetaException(e);
-    }
   }
 
   private MetaStoreFS getMetaStoreFsHandler(Configuration conf)
@@ -113,9 +101,6 @@ public class Warehouse {
    * Helper functions to convert IOException to MetaException
    */
   public FileSystem getFs(Path f) throws MetaException {
-    if (f.toString().startsWith("pfile:")) {
-      return proxyLocalFS;
-    }
     try {
       return f.getFileSystem(conf);
     } catch (IOException e) {
@@ -149,16 +134,9 @@ public class Warehouse {
    * @return Path with canonical scheme and authority
    */
   public Path getDnsPath(Path path) throws MetaException {
-    if (path.toString().startsWith("pfile:")) {
-      return path;
-    }
     FileSystem fs = getFs(path);
-    try {
-      return (new Path(fs.getUri().getScheme(), fs.getUri().getAuthority(), path
-          .toUri().getPath()));
-    } catch (NullPointerException ex) {
-      throw new RuntimeException("getDnsPath failed for " + path, ex);
-    }
+    return (new Path(fs.getUri().getScheme(), fs.getUri().getAuthority(), path
+        .toUri().getPath()));
   }
 
   /**
@@ -186,6 +164,14 @@ public class Warehouse {
     }
     return new Path(db.getLocationUri());
   }
+
+  public Path getDefaultDatabasePath(String dbName) throws MetaException {
+    if (dbName.equalsIgnoreCase(DEFAULT_DATABASE_NAME)) {
+      return getWhRoot();
+    }
+    return new Path(getWhRoot(), dbName.toLowerCase() + DATABASE_WAREHOUSE_SUFFIX);
+  }
+
 
   public Path getTablePath(Database db, String tableName)
       throws MetaException {
@@ -399,6 +385,38 @@ public class Warehouse {
     }
   }
 
+  public static Map<String, String> makeEscSpecFromName(String name) throws MetaException {
+
+    if (name == null || name.isEmpty()) {
+      throw new MetaException("Partition name is invalid. " + name);
+    }
+    LinkedHashMap<String, String> partSpec = new LinkedHashMap<String, String>();
+
+    Path currPath = new Path(name);
+
+    List<String[]> kvs = new ArrayList<String[]>();
+    do {
+      String component = currPath.getName();
+      Matcher m = pat.matcher(component);
+      if (m.matches()) {
+        String k = m.group(1);
+        String v = m.group(2);
+        String[] kv = new String[2];
+        kv[0] = k;
+        kv[1] = v;
+        kvs.add(kv);
+      }
+      currPath = currPath.getParent();
+    } while (currPath != null && !currPath.getName().isEmpty());
+
+    // reverse the list since we checked the part from leaf dir to table's base dir
+    for (int i = kvs.size(); i > 0; i--) {
+      partSpec.put(kvs.get(i - 1)[0], kvs.get(i - 1)[1]);
+    }
+
+    return partSpec;
+  }
+
   public Path getPartitionPath(Database db, String tableName,
       LinkedHashMap<String, String> pm) throws MetaException {
     return new Path(getTablePath(db, tableName), makePartPath(pm));
@@ -413,9 +431,6 @@ public class Warehouse {
     FileSystem fs = null;
     try {
       fs = getFs(f);
-      if (fs == null) {
-        throw new NullPointerException("getFs returned null for " + f);
-      }
       FileStatus fstatus = fs.getFileStatus(f);
       if (!fstatus.isDir()) {
         return false;
@@ -425,9 +440,6 @@ public class Warehouse {
     } catch (IOException e) {
       closeFs(fs);
       MetaStoreUtils.logAndThrowMetaException(e);
-    } catch (NullPointerException e) {
-       throw new RuntimeException("isDir failed for path " + f + ", file system: " +
-         (fs == null ? "null" : fs.getClass().getName()), e);
     }
     return true;
   }

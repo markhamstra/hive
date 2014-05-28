@@ -18,11 +18,10 @@
 
 package org.apache.hadoop.hive.serde2.objectinspector.primitive;
 
-import java.sql.Date;
 import java.sql.Timestamp;
 
+import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.hadoop.hive.serde2.ByteStream;
-import org.apache.hadoop.hive.serde2.lazy.ByteArrayRef;
 import org.apache.hadoop.hive.serde2.lazy.LazyInteger;
 import org.apache.hadoop.hive.serde2.lazy.LazyLong;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter;
@@ -238,27 +237,6 @@ public class PrimitiveObjectInspectorConverter {
     }
   }
 
-  public static class DateConverter implements Converter {
-    PrimitiveObjectInspector inputOI;
-    SettableDateObjectInspector outputOI;
-    Object r;
-
-    public DateConverter(PrimitiveObjectInspector inputOI,
-        SettableDateObjectInspector outputOI) {
-      this.inputOI = inputOI;
-      this.outputOI = outputOI;
-      r = outputOI.create(new Date(0));
-    }
-
-    public Object convert(Object input) {
-      if (input == null) {
-        return null;
-      }
-      return outputOI.set(r, PrimitiveObjectInspectorUtils.getDate(input,
-          inputOI));
-    }
-  }
-
   public static class TimestampConverter implements Converter {
     PrimitiveObjectInspector inputOI;
     SettableTimestampObjectInspector outputOI;
@@ -280,6 +258,34 @@ public class PrimitiveObjectInspectorConverter {
     }
   }
 
+  public static class HiveDecimalConverter implements Converter {
+
+    PrimitiveObjectInspector inputOI;
+    SettableHiveDecimalObjectInspector outputOI;
+    Object r;
+
+    public HiveDecimalConverter(PrimitiveObjectInspector inputOI,
+        SettableHiveDecimalObjectInspector outputOI) {
+      this.inputOI = inputOI;
+      this.outputOI = outputOI;
+      this.r = outputOI.create(HiveDecimal.ZERO);
+    }
+
+    @Override
+    public Object convert(Object input) {
+      if (input == null) {
+        return null;
+      }
+      
+      try {
+        return outputOI.set(r, PrimitiveObjectInspectorUtils.getHiveDecimal(input,
+            inputOI));
+      } catch (NumberFormatException e) {
+        return null;
+      }
+    }
+  }
+
   public static class BinaryConverter implements Converter{
 
     PrimitiveObjectInspector inputOI;
@@ -290,13 +296,15 @@ public class PrimitiveObjectInspectorConverter {
         SettableBinaryObjectInspector outputOI) {
       this.inputOI = inputOI;
       this.outputOI = outputOI;
-      ByteArrayRef ba = new ByteArrayRef();
-      ba.setData(new byte[]{});
-      r = outputOI.create(ba);
+      r = outputOI.create(new byte[]{});
     }
 
     @Override
     public Object convert(Object input) {
+      if (input == null) {
+        return null;
+      }
+
       return outputOI.set(r, PrimitiveObjectInspectorUtils.getBinary(input,
           inputOI));
     }
@@ -364,15 +372,15 @@ public class PrimitiveObjectInspectorConverter {
           t.set(((StringObjectInspector) inputOI).getPrimitiveJavaObject(input));
         }
         return t;
-      case DATE:
-        t.set(((DateObjectInspector) inputOI).getPrimitiveWritableObject(input).toString());
-        return t;
       case TIMESTAMP:
         t.set(((TimestampObjectInspector) inputOI)
             .getPrimitiveWritableObject(input).toString());
         return t;
       case BINARY:
         t.set(((BinaryObjectInspector) inputOI).getPrimitiveWritableObject(input).getBytes());
+        return t;
+      case DECIMAL:
+        t.set(((HiveDecimalObjectInspector) inputOI).getPrimitiveWritableObject(input).toString());
         return t;
       default:
         throw new RuntimeException("Hive 2 Internal error: type = " + inputOI.getTypeName());

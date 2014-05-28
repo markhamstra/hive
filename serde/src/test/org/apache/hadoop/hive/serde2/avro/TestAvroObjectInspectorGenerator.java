@@ -142,6 +142,32 @@ public class TestAvroObjectInspectorGenerator {
       "    {\"name\":\"nullableString\", \"type\":[\"null\", \"string\"]}\n" +
       "  ]\n" +
       "}";
+  public static final String MAP_WITH_NULLABLE_PRIMITIVE_VALUE_TYPE_SCHEMA = "{\n" +
+      "  \"namespace\": \"testing\",\n" +
+      "  \"name\": \"mapWithNullableUnionTest\",\n" +
+      "  \"type\": \"record\",\n" +
+      "  \"fields\": [\n" +
+      "    {\n" +
+      "      \"name\":\"aMap\",\n" +
+      "      \"type\":{\"type\":\"map\",\n" +
+      "      \"values\":[\"null\",\"long\"]}\n" +
+      "\t}\n" +
+      "  ]\n" +
+      "}";
+  public static final String NULLABLE_ENUM_SCHEMA = "{\n" +
+      "  \"namespace\": \"clever.namespace.name.in.space\",\n" +
+      "  \"name\": \"nullableUnionTest\",\n" +
+      "  \"type\": \"record\",\n" +
+      "  \"fields\": [\n" +
+      "   {\n" +
+      "      \"name\":\"nullableEnum\",\n" +
+      "      \"type\": [\"null\", {\"type\":\"enum\",\"name\":\"villians\", \"symbols\": " +
+          "[\"DALEKS\", \"CYBERMEN\", \"SLITHEEN\", \"JAGRAFESS\"]}]\n" +
+      "      \n" +
+      "      \n" +
+      "    }\n" +
+      "  ]\n" +
+      "}";
   public static final String BYTES_SCHEMA = "{\n" +
       "  \"type\": \"record\", \n" +
       "  \"name\": \"bytesTest\",\n" +
@@ -325,10 +351,19 @@ public class TestAvroObjectInspectorGenerator {
   public void canHandleMapsWithPrimitiveValueTypes() throws SerDeException {
     Schema s = Schema.parse(MAP_WITH_PRIMITIVE_VALUE_TYPE);
     AvroObjectInspectorGenerator aoig = new AvroObjectInspectorGenerator(s);
-
+    verifyMap(aoig, "aMap");
+  }
+ 
+  /**
+   * Check a given AvroObjectInspectorGenerator to verify that it matches our test
+   * schema's expected map.
+   * @param aoig should already have been intitialized, may not be null
+   * @param fieldName name of the contianed column, will always fail if null.
+   */
+  private void verifyMap(final AvroObjectInspectorGenerator aoig, final String fieldName) {
     // Column names
     assertEquals(1, aoig.getColumnNames().size());
-    assertEquals("aMap", aoig.getColumnNames().get(0));
+    assertEquals(fieldName, aoig.getColumnNames().get(0));
 
     // Column types
     assertEquals(1, aoig.getColumnTypes().size());
@@ -473,6 +508,30 @@ public class TestAvroObjectInspectorGenerator {
     AvroObjectInspectorGenerator aoig = new AvroObjectInspectorGenerator(s);
     assertEquals(1, aoig.getColumnNames().size());
     assertEquals("nullableString", aoig.getColumnNames().get(0));
+
+    // Column types
+    assertEquals(1, aoig.getColumnTypes().size());
+    TypeInfo typeInfo = aoig.getColumnTypes().get(0);
+    assertTrue(typeInfo instanceof PrimitiveTypeInfo);
+    PrimitiveTypeInfo pti = (PrimitiveTypeInfo) typeInfo;
+    // Verify the union has been hidden and just the main type has been returned.
+    assertEquals(PrimitiveObjectInspector.PrimitiveCategory.STRING, pti.getPrimitiveCategory());
+  }
+
+  @Test // That Union[T, NULL] is converted to just T, within a Map
+  public void convertsMapsWithNullablePrimitiveTypes() throws SerDeException {
+    Schema s = Schema.parse(MAP_WITH_NULLABLE_PRIMITIVE_VALUE_TYPE_SCHEMA);
+    AvroObjectInspectorGenerator aoig = new AvroObjectInspectorGenerator(s);
+    verifyMap(aoig, "aMap");
+  }
+
+  @Test // That Union[T, NULL] is converted to just T.
+  public void convertsNullableEnum() throws SerDeException {
+    Schema s = Schema.parse(NULLABLE_ENUM_SCHEMA);
+
+    AvroObjectInspectorGenerator aoig = new AvroObjectInspectorGenerator(s);
+    assertEquals(1, aoig.getColumnNames().size());
+    assertEquals("nullableEnum", aoig.getColumnNames().get(0));
 
     // Column types
     assertEquals(1, aoig.getColumnTypes().size());

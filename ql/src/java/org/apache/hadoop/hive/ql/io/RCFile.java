@@ -208,7 +208,7 @@ public class RCFile {
    * <li>{the end of the key part}</li>
    * </ul>
    */
-  public static class KeyBuffer implements WritableComparable {
+  public static class KeyBuffer implements WritableComparable<KeyBuffer> {
     // each column's length in the value
     private int[] eachColumnValueLen = null;
     private int[] eachColumnUncompressedValueLen = null;
@@ -313,9 +313,24 @@ public class RCFile {
     }
 
     @Override
-    public int compareTo(Object arg0) {
+    public int compareTo(KeyBuffer arg0) {
       throw new RuntimeException("compareTo not supported in class "
           + this.getClass().getName());
+    }
+
+    public int[] getEachColumnUncompressedValueLen() {
+      return eachColumnUncompressedValueLen;
+    }
+
+    public int[] getEachColumnValueLen() {
+      return eachColumnValueLen;
+    }
+
+    /**
+     * @return the numberRows
+     */
+    public int getNumberRows() {
+      return numberRows;
     }
   }
 
@@ -329,7 +344,7 @@ public class RCFile {
    * column_2_row_2_value,....]</li>
    * </ul>
    */
-  public static class ValueBuffer implements WritableComparable {
+  public static class ValueBuffer implements WritableComparable<ValueBuffer> {
 
     class LazyDecompressionCallbackImpl implements LazyDecompressionCallback {
 
@@ -557,7 +572,7 @@ public class RCFile {
     }
 
     @Override
-    public int compareTo(Object arg0) {
+    public int compareTo(ValueBuffer arg0) {
       throw new RuntimeException("compareTo not supported in class "
           + this.getClass().getName());
     }
@@ -578,11 +593,6 @@ public class RCFile {
       result.set(values[i], values[i+1]);
     }
     return result;
-  }
-
-  /** Callback allowing the user to get notified after records get flushed to HDFS */
-  public interface FlushCallback {
-    public void recordsFlushed(RCFile.Writer writer, int bufferedRecords, int columnBufferSize);
   }
 
   /**
@@ -635,8 +645,6 @@ public class RCFile {
     private final int[] comprTotalColumnLength;
 
     boolean useNewMagic = true;
-
-    private FlushCallback flushCallback = null;
 
     /*
      * used for buffering appends before flush them out
@@ -917,10 +925,7 @@ public class RCFile {
       }
     }
 
-    public void flushRecords() throws IOException {
-      if (bufferedRecords == 0) {
-        return;
-      }
+    private void flushRecords() throws IOException {
 
       key.numberRows = bufferedRecords;
 
@@ -987,10 +992,6 @@ public class RCFile {
             columnBuffers[columnIndex].columnValBuffer;
           out.write(buf.getData(), 0, buf.getLength());
         }
-      }
-
-      if (flushCallback != null) {
-        flushCallback.recordsFlushed(this, bufferedRecords, columnBufferSize);
       }
 
       // clear the columnBuffers
@@ -1063,10 +1064,6 @@ public class RCFile {
           + plainTotalColumnLength[i]
           + ",  Compr Total Column Value Length: " + comprTotalColumnLength[i]);
       }
-    }
-
-    public void setFlushCallback(FlushCallback flushCallback) {
-      this.flushCallback = flushCallback;
     }
   }
 

@@ -1,21 +1,9 @@
-PREHOOK: query: drop table if exists sih_i_part
-PREHOOK: type: DROPTABLE
-POSTHOOK: query: drop table if exists sih_i_part
-POSTHOOK: type: DROPTABLE
-PREHOOK: query: drop table if exists sih_src
-PREHOOK: type: DROPTABLE
-POSTHOOK: query: drop table if exists sih_src
-POSTHOOK: type: DROPTABLE
-PREHOOK: query: drop table if exists sih_src2
-PREHOOK: type: DROPTABLE
-POSTHOOK: query: drop table if exists sih_src2
-POSTHOOK: type: DROPTABLE
-PREHOOK: query: -- EXCLUDE_HADOOP_MAJOR_VERSIONS(0.20)
+PREHOOK: query: -- EXCLUDE_HADOOP_MAJOR_VERSIONS(0.20, 0.20S)
 
 -- create file inputs
 create table sih_i_part (key int, value string) partitioned by (p string)
 PREHOOK: type: CREATETABLE
-POSTHOOK: query: -- EXCLUDE_HADOOP_MAJOR_VERSIONS(0.20)
+POSTHOOK: query: -- EXCLUDE_HADOOP_MAJOR_VERSIONS(0.20, 0.20S)
 
 -- create file inputs
 create table sih_i_part (key int, value string) partitioned by (p string)
@@ -112,15 +100,3 @@ PREHOOK: type: QUERY
 PREHOOK: Input: default@sih_src
 #### A masked pattern was here ####
 25
-PREHOOK: query: drop table sih_i_part
-PREHOOK: type: DROPTABLE
-PREHOOK: Input: default@sih_i_part
-PREHOOK: Output: default@sih_i_part
-PREHOOK: query: drop table sih_src
-PREHOOK: type: DROPTABLE
-PREHOOK: Input: default@sih_src
-PREHOOK: Output: default@sih_src
-PREHOOK: query: drop table sih_src2
-PREHOOK: type: DROPTABLE
-PREHOOK: Input: default@sih_src2
-PREHOOK: Output: default@sih_src2

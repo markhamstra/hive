@@ -135,6 +135,10 @@ public class ExprNodeGenericFuncEvaluator extends ExprNodeEvaluator {
       throw new HiveException(
         "Stateful expressions cannot be used inside of CASE");
     }
+    MapredContext context = MapredContext.get();
+    if (context != null) {
+      context.setup(genericUDF);
+    }
     this.outputOI = genericUDF.initializeAndFoldConstants(childrenOIs);
 
     // cause the isDeterministic will call Class.initAnnotationsIfNecessary() indirectly, which is

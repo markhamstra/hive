@@ -39,9 +39,9 @@ import org.apache.hadoop.hive.serde2.objectinspector.InspectableObject;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
+import org.apache.hadoop.hive.serde2.objectinspector.StandardUnionObjectInspector.StandardUnion;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.UnionObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.StandardUnionObjectInspector.StandardUnion;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
@@ -80,6 +80,18 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
   transient byte[] tagByte = new byte[1];
   transient protected int numDistributionKeys;
   transient protected int numDistinctExprs;
+  transient protected boolean optimizeSkew;
+  transient String inputAlias;  // input alias of this RS for join (used for PPD)
+
+
+
+  public void setInputAlias(String inputAlias) {
+    this.inputAlias = inputAlias;
+  }
+
+  public String getInputAlias() {
+    return inputAlias;
+  }
 
   @Override
   protected void initializeOp(Configuration hconf) throws HiveException {
@@ -94,6 +106,7 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
       numDistributionKeys = conf.getNumDistributionKeys();
       distinctColIndices = conf.getDistinctColumnIndices();
       numDistinctExprs = distinctColIndices.size();
+      optimizeSkew = conf.isOptimizeSkew();
 
       valueEval = new ExprNodeEvaluator[conf.getValueCols().size()];
       i = 0;
@@ -137,6 +150,7 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
   transient StructObjectInspector keyObjectInspector;
   transient StructObjectInspector valueObjectInspector;
   transient ObjectInspector[] partitionObjectInspectors;
+  transient ObjectInspector[] keyColObjectInspectors;
 
   transient Object[][] cachedKeys;
   transient Object[] cachedValues;
@@ -158,7 +172,8 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
   protected static StructObjectInspector initEvaluatorsAndReturnStruct(
       ExprNodeEvaluator[] evals, List<List<Integer>> distinctColIndices,
       List<String> outputColNames,
-      int length, ObjectInspector rowInspector)
+      int length, ObjectInspector rowInspector, boolean optimizeSkew,
+      ObjectInspector[] keyColObjectInspectors)
       throws HiveException {
     int inspectorLen = evals.length > length ? length + 1 : evals.length;
     List<ObjectInspector> sois = new ArrayList<ObjectInspector>(inspectorLen);
@@ -166,6 +181,9 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
     // keys
     ObjectInspector[] fieldObjectInspectors = initEvaluators(evals, 0, length, rowInspector);
     sois.addAll(Arrays.asList(fieldObjectInspectors));
+    if (optimizeSkew) {
+      System.arraycopy(fieldObjectInspectors, 0, keyColObjectInspectors, 0, length);
+    }
 
     if (outputColNames.size() > length) {
       // union keys
@@ -176,7 +194,11 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
         int numExprs = 0;
         for (int i : distinctCols) {
           names.add(HiveConf.getColumnInternalName(numExprs));
-          eois.add(evals[i].initialize(rowInspector));
+          ObjectInspector oi = evals[i].initialize(rowInspector);
+          eois.add(oi);
+          if (optimizeSkew && keyColObjectInspectors[i] == null) {
+            keyColObjectInspectors[i] = oi;
+          }
           numExprs++;
         }
         uois.add(ObjectInspectorFactory.getStandardStructObjectInspector(names, eois));
@@ -188,44 +210,36 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
     return ObjectInspectorFactory.getStandardStructObjectInspector(outputColNames, sois );
   }
 
+  protected static StructObjectInspector initEvaluatorsAndReturnStruct(
+      ExprNodeEvaluator[] evals, List<List<Integer>> distinctColIndices,
+      List<String> outputColNames,
+      int length, ObjectInspector rowInspector) throws HiveException {
+    return initEvaluatorsAndReturnStruct(evals, distinctColIndices, outputColNames, length,
+      rowInspector, false, null);
+  }
+
   @Override
   public void processOp(Object row, int tag) throws HiveException {
     try {
       ObjectInspector rowInspector = inputObjInspectors[tag];
       if (firstRow) {
         firstRow = false;
+        if (optimizeSkew) {
+          keyColObjectInspectors = new ObjectInspector[keyEval.length];
+        }
         keyObjectInspector = initEvaluatorsAndReturnStruct(keyEval,
             distinctColIndices,
-            conf.getOutputKeyColumnNames(), numDistributionKeys, rowInspector);
+            conf.getOutputKeyColumnNames(), numDistributionKeys, rowInspector,
+            optimizeSkew, keyColObjectInspectors);
         valueObjectInspector = initEvaluatorsAndReturnStruct(valueEval, conf
             .getOutputValueColumnNames(), rowInspector);
         partitionObjectInspectors = initEvaluators(partitionEval, rowInspector);
+        //keyColObjectInspectors = initEvaluators(keyEval, rowInspector);
         int numKeys = numDistinctExprs > 0 ? numDistinctExprs : 1;
         int keyLen = numDistinctExprs > 0 ? numDistributionKeys + 1 :
           numDistributionKeys;
         cachedKeys = new Object[numKeys][keyLen];
         cachedValues = new Object[valueEval.length];
-      }
-
-      // Evaluate the HashCode
-      int keyHashCode = 0;
-      if (partitionEval.length == 0) {
-        // If no partition cols, just distribute the data uniformly to provide
-        // better
-        // load balance. If the requirement is to have a single reducer, we
-        // should set
-        // the number of reducers to 1.
-        // Use a constant seed to make the code deterministic.
-        if (random == null) {
-          random = new Random(12345);
-        }
-        keyHashCode = random.nextInt();
-      } else {
-        for (int i = 0; i < partitionEval.length; i++) {
-          Object o = partitionEval[i].evaluate(row);
-          keyHashCode = keyHashCode * 31
-              + ObjectInspectorUtils.hashCode(o, partitionObjectInspectors[i]);
-        }
       }
 
       // Evaluate the value
@@ -241,21 +255,51 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
         distributionKeys[i] = keyEval[i].evaluate(row);
       }
 
+
+      // Evaluate the HashCode
+      int currentHashCode = 0;
+      int keyHashCode[] = new int[numDistinctExprs > 0 ? numDistinctExprs : 1];
+      if (partitionEval.length == 0 && numDistinctExprs == 0) {
+        // If no partition cols, just distribute the data uniformly to provide
+        // better
+        // load balance. If the requirement is to have a single reducer, we
+        // should set
+        // the number of reducers to 1.
+        // Use a constant seed to make the code deterministic.
+        if (random == null) {
+          random = new Random(12345);
+        }
+        currentHashCode = random.nextInt();
+      } else {
+        for (int i = 0; i < partitionEval.length; i++) {
+          Object o = partitionEval[i].evaluate(row);
+          currentHashCode = currentHashCode * 31
+              + ObjectInspectorUtils.hashCode(o, partitionObjectInspectors[i]);
+        }
+      }
+
       if (numDistinctExprs > 0) {
         // with distinct key(s)
         for (int i = 0; i < numDistinctExprs; i++) {
           System.arraycopy(distributionKeys, 0, cachedKeys[i], 0, numDistributionKeys);
           Object[] distinctParameters =
             new Object[distinctColIndices.get(i).size()];
+          keyHashCode[i] = currentHashCode;
           for (int j = 0; j < distinctParameters.length; j++) {
-            distinctParameters[j] =
-              keyEval[distinctColIndices.get(i).get(j)].evaluate(row);
+            distinctParameters[j] = keyEval[distinctColIndices.get(i).get(j)].evaluate(row);
+            if (optimizeSkew) {
+              keyHashCode[i] = keyHashCode[i] * 31
+                + ObjectInspectorUtils.hashCode(distinctParameters[j],
+                    keyColObjectInspectors[distinctColIndices.get(i).get(j)]);
+            }
+
           }
           cachedKeys[i][numDistributionKeys] =
               new StandardUnion((byte)i, distinctParameters);
         }
       } else {
         // no distinct key
+        keyHashCode[0] = currentHashCode;
         System.arraycopy(distributionKeys, 0, cachedKeys[0], 0, numDistributionKeys);
       }
       // Serialize the keys and append the tag
@@ -284,7 +328,7 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
             keyWritable.get()[keyLength] = tagByte[0];
           }
         }
-        keyWritable.setHashCode(keyHashCode);
+        keyWritable.setHashCode(keyHashCode[i]);
         if (out != null) {
           out.collect(keyWritable, value);
           // Since this is a terminal operator, update counters explicitly -
@@ -310,11 +354,20 @@ public class ReduceSinkOperator extends TerminalOperator<ReduceSinkDesc>
    */
   @Override
   public String getName() {
+    return getOperatorName();
+  }
+
+  static public String getOperatorName() {
     return "RS";
   }
 
   @Override
   public OperatorType getType() {
     return OperatorType.REDUCESINK;
+  }
+
+  @Override
+  public boolean opAllowedBeforeMapJoin() {
+    return false;
   }
 }

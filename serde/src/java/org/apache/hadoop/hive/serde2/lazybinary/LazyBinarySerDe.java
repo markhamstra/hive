@@ -27,13 +27,13 @@ import java.util.Properties;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.serde.Constants;
+import org.apache.hadoop.hive.serde.serdeConstants;
+import org.apache.hadoop.hive.serde2.AbstractSerDe;
 import org.apache.hadoop.hive.serde2.ByteStream;
 import org.apache.hadoop.hive.serde2.ByteStream.Output;
-import org.apache.hadoop.hive.serde2.SerDe;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.SerDeStats;
-import org.apache.hadoop.hive.serde2.io.DateWritable;
+import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.hadoop.hive.serde2.lazy.ByteArrayRef;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
@@ -43,6 +43,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveDecimalObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BinaryObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.ByteObjectInspector;
@@ -52,7 +53,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspecto
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.LongObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.ShortObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.DateObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
@@ -67,7 +67,7 @@ import org.apache.hadoop.io.Writable;
  * deserialized until required. Binary means a field is serialized in binary
  * compact format.
  */
-public class LazyBinarySerDe implements SerDe {
+public class LazyBinarySerDe extends AbstractSerDe {
 
   public static final Log LOG = LogFactory.getLog(LazyBinarySerDe.class
       .getName());
@@ -96,8 +96,8 @@ public class LazyBinarySerDe implements SerDe {
   public void initialize(Configuration conf, Properties tbl)
       throws SerDeException {
     // Get column names and types
-    String columnNameProperty = tbl.getProperty(Constants.LIST_COLUMNS);
-    String columnTypeProperty = tbl.getProperty(Constants.LIST_COLUMN_TYPES);
+    String columnNameProperty = tbl.getProperty(serdeConstants.LIST_COLUMNS);
+    String columnTypeProperty = tbl.getProperty(serdeConstants.LIST_COLUMN_TYPES);
     if (columnNameProperty.length() == 0) {
       columnNames = new ArrayList<String>();
     } else {
@@ -378,17 +378,20 @@ public class LazyBinarySerDe implements SerDe {
         return warnedOnceNullMapKey;
       }
 
-      case DATE: {
-        LazyBinaryDate.write(byteStream,
-          ((DateObjectInspector) poi).getPrimitiveWritableObject(obj));
-        return warnedOnceNullMapKey;
-      }
       case TIMESTAMP: {
         TimestampObjectInspector toi = (TimestampObjectInspector) poi;
         TimestampWritable t = toi.getPrimitiveWritableObject(obj);
         t.writeToByteStream(byteStream);
         return warnedOnceNullMapKey;
       }
+
+      case DECIMAL: {
+        HiveDecimalObjectInspector bdoi = (HiveDecimalObjectInspector) poi;
+        HiveDecimalWritable t = bdoi.getPrimitiveWritableObject(obj);
+        t.writeToByteStream(byteStream);
+        return warnedOnceNullMapKey;
+      }
+
       default: {
         throw new RuntimeException("Unrecognized type: "
             + poi.getPrimitiveCategory());

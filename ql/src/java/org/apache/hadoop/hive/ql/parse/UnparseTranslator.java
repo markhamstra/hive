@@ -29,7 +29,13 @@ import org.apache.hadoop.hive.ql.metadata.HiveUtils;
 
 /**
  * UnparseTranslator is used to "unparse" objects such as views when their
- * definition is stored.
+ * definition is stored. It has a translations map where its possible to replace all the
+ * text with the appropriate escaped version [say invites.ds will be replaced with
+ * `invites`.`ds` and the entire query is processed like this and stored as
+ * Extended text in table's metadata]. This holds all individual translations and
+ * where they apply in the stream. The unparse is lazy and happens when
+ * SemanticAnalyzer.saveViewDefinition() calls TokenRewriteStream.toString().
+ *
  */
 class UnparseTranslator {
   // key is token start index
@@ -57,12 +63,15 @@ class UnparseTranslator {
   }
 
   /**
-   * Register a translation to be performed as part of unparse.
+   * Register a translation to be performed as part of unparse. ANTLR imposes
+   * strict conditions on the translations and errors out during
+   * TokenRewriteStream.toString() if there is an overlap. It expects all
+   * the translations to be disjoint (See HIVE-2439).
    * If the translation overlaps with any previously
    * registered translation, then it must be either
    * identical or a prefix (in which cases it is ignored),
    * or else it must extend the existing translation (i.e.
-   * the existing translation must be a prefix of the new translation).
+   * the existing translation must be a prefix/suffix of the new translation).
    * All other overlap cases result in assertion failures.
    *
    * @param node
@@ -128,6 +137,19 @@ class UnparseTranslator {
       }
     }
 
+    // Is existing entry a suffix of the newer entry and a subset of it?
+    existingEntry = translations.floorEntry(tokenStopIndex);
+    if (existingEntry != null) {
+      if (existingEntry.getKey().equals(tokenStopIndex)) {
+        if (tokenStartIndex < existingEntry.getKey() &&
+            tokenStopIndex == existingEntry.getKey()) {
+          // Seems newer entry is a super-set of existing entry, remove existing entry
+          assert (replacementText.endsWith(existingEntry.getValue().replacementText));
+          translations.remove(tokenStopIndex);
+        }
+      }
+    }
+
     // It's all good: create a new entry in the map (or update existing one)
     translations.put(tokenStartIndex, translation);
   }
@@ -138,7 +160,7 @@ class UnparseTranslator {
    * @param node
    *          source node (which must be an tabName) to be replaced
    */
-  void addTableNameTranslation(ASTNode tableName) {
+  void addTableNameTranslation(ASTNode tableName, String currentDatabaseName) {
     if (!enabled) {
       return;
     }
@@ -148,9 +170,22 @@ class UnparseTranslator {
     }
     assert (tableName.getToken().getType() == HiveParser.TOK_TABNAME);
     assert (tableName.getChildCount() <= 2);
-    addIdentifierTranslation((ASTNode)tableName.getChild(0));
+
     if (tableName.getChildCount() == 2) {
+      addIdentifierTranslation((ASTNode)tableName.getChild(0));
       addIdentifierTranslation((ASTNode)tableName.getChild(1));
+    }
+    else {
+      // transform the table reference to an absolute reference (i.e., "db.table")
+      StringBuilder replacementText = new StringBuilder();
+      replacementText.append(HiveUtils.unparseIdentifier(currentDatabaseName));
+      replacementText.append('.');
+
+      ASTNode identifier = (ASTNode)tableName.getChild(0);
+      String identifierText = BaseSemanticAnalyzer.unescapeIdentifier(identifier.getText());
+      replacementText.append(HiveUtils.unparseIdentifier(identifierText));
+
+      addTranslation(identifier, replacementText.toString());
     }
   }
 

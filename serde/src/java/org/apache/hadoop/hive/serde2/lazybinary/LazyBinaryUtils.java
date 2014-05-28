@@ -123,7 +123,13 @@ public final class LazyBinaryUtils {
     }
   }
 
-  static VInt vInt = new LazyBinaryUtils.VInt();
+  private static ThreadLocal<VInt> vIntThreadLocal = new ThreadLocal<VInt>() {
+    @Override
+    public VInt initialValue() {
+      return new VInt();
+    }
+  };
+
 
   /**
    * Check a particular field and set its size and offset in bytes based on the
@@ -147,7 +153,8 @@ public final class LazyBinaryUtils {
    *          modify this byteinfo object and return it
    */
   public static void checkObjectByteInfo(ObjectInspector objectInspector,
-      byte[] bytes, int offset, RecordInfo recordInfo, VInt vInt) {
+      byte[] bytes, int offset, RecordInfo recordInfo) {
+    VInt vInt = vIntThreadLocal.get();
     Category category = objectInspector.getCategory();
     switch (category) {
     case PRIMITIVE:
@@ -203,6 +210,14 @@ public final class LazyBinaryUtils {
       case TIMESTAMP:
         recordInfo.elementOffset = 0;
         recordInfo.elementSize = TimestampWritable.getTotalLength(bytes, offset);
+        break;
+      case DECIMAL:
+        // using vint instead of 4 bytes
+        LazyBinaryUtils.readVInt(bytes, offset, vInt);
+        recordInfo.elementOffset = 0;
+        recordInfo.elementSize = vInt.length;
+        LazyBinaryUtils.readVInt(bytes, offset + vInt.length, vInt);
+        recordInfo.elementSize += vInt.length + vInt.value;
         break;
       default: {
         throw new RuntimeException("Unrecognized primitive type: "
@@ -383,10 +398,15 @@ public final class LazyBinaryUtils {
     return 1 + len;
   }
 
-  //private static byte[] vLongBytes = new byte[9];
+  private static ThreadLocal<byte[]> vLongBytesThreadLocal = new ThreadLocal<byte[]>() {
+    @Override
+    public byte[] initialValue() {
+      return new byte[9];
+    }
+  };
 
   public static void writeVLong(Output byteStream, long l) {
-    byte[] vLongBytes = new byte[9];
+    byte[] vLongBytes = vLongBytesThreadLocal.get();
     int len = LazyBinaryUtils.writeVLongToByteArray(vLongBytes, l);
     byteStream.write(vLongBytes, 0, len);
   }

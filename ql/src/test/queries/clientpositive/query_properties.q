@@ -12,3 +12,4 @@ select * from src cluster by src.key limit 0;
 select key, sum(value) from (select a.key as key, b.value as value from src a join src b on a.key = b.key) c group by key limit 0;
 select * from src a join src b on a.key = b.key order by a.key limit 0;
 select * from src a join src b on a.key = b.key distribute by a.key sort by a.key, b.value limit 0;
+

@@ -30,33 +30,35 @@
           http://www.ibiblio.net/pub/packages/maven2
   -->
 
-  <property name="repo.maven.org" value="http://repo1.maven.org/maven2/" override="false"/>
+  <property name="repo.maven.org" value="http://mirrors.ibiblio.org/pub/mirrors/maven2/" override="false"/>
   <property name="snapshot.apache.org" value="https://repository.apache.org/content/repositories/snapshots/" override="false"/>
   <property name="maven2.pattern" value="[organisation]/[module]/[revision]/[module]-[revision](-[classifier])"/>
-  <property name="repo.dir" value="${user.home}/.m2/repository"/>
+  <property name="repo.dir" value="${user.home}/.m2/repository" override="false"/>
   <property name="maven2.pattern.ext"  value="${maven2.pattern}.[ext]"/>
+  <property name="sourceforge-repo" value="http://www.sourceforge.net/projects"/>
   <property name="resolvers" value="default" override="false"/>
   <!-- pull in the local repository -->
   <include url="${ivy.default.conf.dir}/ivyconf-local.xml"/>
   <settings defaultResolver="${resolvers}"/>
 
   <resolvers>
-    <url name="hadoop-source">
-      <artifact pattern="${hadoop.mirror}/hadoop/core/[artifact]-[revision]/[artifact]-[revision].[ext]" />
-    </url>
-
     <ibiblio name="maven2" root="${repo.maven.org}" pattern="${maven2.pattern.ext}" m2compatible="true"/>
+    <ibiblio name="maven2" root="http://repo1.maven.org/maven2/" pattern="${maven2.pattern.ext}" m2compatible="true"/>
     <ibiblio name="apache-snapshot" root="${snapshot.apache.org}" m2compatible="true"
              checkmodified="${ivy.checkmodified}"
              changingPattern="${ivy.changingPattern}"/>
 
     <url name="datanucleus-repo" m2compatible="true">
-      <artifact pattern="${datanucleus.repo}/[organisation]/[module]/[revision]/[module]-[revision].[ext]"/>
+      <artifact pattern="${datanucleus.repo}/[organisation]/[module]/[revision]/[module]-[revision](-[classifier]).[ext]"/>
     </url>
 
-    <filesystem name="fs" m2compatible="true" force="true">
-       <artifact pattern="${repo.dir}/org/apache/hadoop/[module]/[revision]/[module]-[revision].[ext]"/>
-       <ivy pattern="${repo.dir}/org/apache/hadoop/[module]/[revision]/[module]-[revision].pom"/>
+    <url name="sourceforge" m2compatible="false" checksums="">
+      <artifact pattern="${sourceforge-repo}/[module]/files/[module]/[branch]/[module]-[revision](-[classifier]).[ext]"/>
+    </url>
+
+    <filesystem name="fs" m2compatible="true" alwaysCheckExactRevision="true">
+       <artifact pattern="${repo.dir}/[organisation]/[module]/[revision]/[module]-[revision](-[classifier]).[ext]"/>
+       <ivy pattern="${repo.dir}/[organisation]/[module]/[revision]/[module]-[revision](-[classifier]).pom"/>
     </filesystem>
 
     <ibiblio name="nexus" m2compatible="true" root="${nexus.url}"/>
@@ -65,11 +67,10 @@
            checkmodified="true"
            changingPattern="${ivy.changingPattern}">
       <resolver ref="local" />
-      <resolver ref="nexus"/>
       <resolver ref="apache-snapshot"/>
       <resolver ref="maven2"/>
       <resolver ref="datanucleus-repo"/>
-      <resolver ref="hadoop-source"/>
+      <resolver ref="sourceforge"/>
     </chain>
 
     <chain name="internal" dual="true">
@@ -78,6 +79,7 @@
       <resolver ref="apache-snapshot"/>
       <resolver ref="maven2"/>
       <resolver ref="datanucleus-repo"/>
+      <resolver ref="sourceforge"/>
     </chain>
 
     <chain name="external">
@@ -89,7 +91,7 @@
 
   <modules>
     <module organisation="org.apache.hadoop" name="hadoop-*" resolver="${resolvers}"/>
-    <module organisation="edu.berkeley.cs.shark" name=".*" resolver="${resolvers}"/>
+    <module organisation="org.apache.hive" name=".*" resolver="${resolvers}"/>
   </modules>
 
   <caches default="${ivy.cache.name}"

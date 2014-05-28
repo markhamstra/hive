@@ -40,6 +40,7 @@ import org.apache.hadoop.hive.ql.QueryPlan;
 import org.apache.hadoop.hive.ql.exec.Task;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.session.SessionState.LogHelper;
+import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.mapred.Counters;
 import org.apache.hadoop.mapred.Counters.Counter;
 import org.apache.hadoop.mapred.Counters.Group;
@@ -62,7 +63,7 @@ public class HiveHistory {
 
   // Job Hash Map
   private final ConcurrentHashMap<String, QueryInfo> queryInfoMap =
-  				new ConcurrentHashMap<String, QueryInfo>();
+    new ConcurrentHashMap<String, QueryInfo>();
 
   // Task Hash Map
   private final HashMap<String, TaskInfo> taskInfoMap = new HashMap<String, TaskInfo>();
@@ -332,7 +333,7 @@ public class HiveHistory {
       return;
     }
     synchronized(ji) {
-    	ji.hm.put(propName.name(), propValue);
+      ji.hm.put(propName.name(), propValue);
     }
   }
 
@@ -405,7 +406,7 @@ public class HiveHistory {
       taskInfoMap.get(id).hm.put(Keys.ROWS_INSERTED.name(), sb1.toString());
       QueryInfo qi = queryInfoMap.get(queryId);
       synchronized(qi) {
-      	qi.hm.put(Keys.ROWS_INSERTED.name(), sb1.toString());
+        qi.hm.put(Keys.ROWS_INSERTED.name(), sb1.toString());
       }
     }
     if (sb.length() > 0) {
@@ -419,9 +420,9 @@ public class HiveHistory {
       return;
     }
     synchronized(ji) {
-	    for (String tab : ji.rowCountMap.keySet()) {
-	      console.printInfo(ji.rowCountMap.get(tab) + " Rows loaded to " + tab);
-	    }
+      for (String tab : ji.rowCountMap.keySet()) {
+        console.printInfo(ji.rowCountMap.get(tab) + " Rows loaded to " + tab);
+      }
     }
   }
 
@@ -432,11 +433,11 @@ public class HiveHistory {
    */
   public void endQuery(String queryId) {
     QueryInfo ji = queryInfoMap.get(queryId);
-    if (ji == null) {
-      return;
-    }
     synchronized(ji) {
-	    log(RecordTypes.QueryEnd, ji.hm);
+      if (ji == null) {
+        return;
+      }
+      log(RecordTypes.QueryEnd, ji.hm);
     }
     queryInfoMap.remove(queryId);
   }
@@ -500,12 +501,16 @@ public class HiveHistory {
   /**
    * write out counters.
    */
-  static Map<String, String> ctrmap = null;
+  static ThreadLocal<Map<String,String>> ctrMapFactory =
+      new ThreadLocal<Map<String, String>>() {
+        @Override
+        protected Map<String,String> initialValue() {
+          return new HashMap<String,String>();
+        }
+      };
 
   public void logPlanProgress(QueryPlan plan) throws IOException {
-    if (ctrmap == null) {
-      ctrmap = new HashMap<String, String>();
-    }
+    Map<String,String> ctrmap = ctrMapFactory.get();
     ctrmap.put("plan", plan.toString());
     log(RecordTypes.Counters, ctrmap);
   }
@@ -538,11 +543,14 @@ public class HiveHistory {
     return null;
 
   }
+
+  public void closeStream() {
+    IOUtils.cleanup(LOG, histStream);
+  }
+
   @Override
   public void finalize() throws Throwable {
-    if (histStream !=null){
-      histStream.close();
-    }
+    closeStream();
     super.finalize();
   }
 }
