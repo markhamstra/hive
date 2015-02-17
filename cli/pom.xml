@@ -19,7 +19,7 @@
   <parent>
     <groupId>org.spark-project.hive</groupId>
     <artifactId>hive</artifactId>
-    <version>0.13.1a-csd-1</version>
+    <version>0.13.1a-csd-2-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
@@ -155,6 +155,16 @@
   </profiles>
 
   <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>${maven.compiler.plugin.version}</version>
+        <configuration>
+          <failOnError>false</failOnError>
+        </configuration>
+      </plugin>
+    </plugins>
     <sourceDirectory>${basedir}/src/java</sourceDirectory>
     <testSourceDirectory>${basedir}/src/test</testSourceDirectory>
   </build>

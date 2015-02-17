@@ -19,7 +19,7 @@
   <parent>
     <groupId>org.spark-project.hive</groupId>
     <artifactId>hive</artifactId>
-    <version>0.13.1a-csd-1</version>
+    <version>0.13.1a-csd-2-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
@@ -35,6 +35,11 @@
     <!-- dependencies are always listed in sorted order by groupId, artifectId -->
     <!-- intra-project -->
     <!-- used for vector code-gen -->
+    <dependency>
+      <groupId>commons-configuration</groupId>
+      <artifactId>commons-configuration</artifactId>
+      <version>${commons-configuration.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.spark-project.hive</groupId>
       <artifactId>hive-ant</artifactId>

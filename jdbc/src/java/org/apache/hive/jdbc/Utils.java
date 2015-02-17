@@ -139,7 +139,7 @@ public class Utils {
    * Note that currently the session properties are not used.
    *
    * @param uri
-   * @return
+   * @return connParams, JDBC connection parameters
    */
   public static JdbcConnectionParams parseURL(String uri) throws IllegalArgumentException {
     JdbcConnectionParams connParams = new JdbcConnectionParams();
