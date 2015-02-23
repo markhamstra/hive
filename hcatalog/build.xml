@@ -259,7 +259,6 @@
                 <contains text="warnings"/>
             </isfileselected>
         </condition>
-        <fail if="javadoc.warnings">Javadoc comments contain warnings.</fail>
     </target>
 
     <!--
