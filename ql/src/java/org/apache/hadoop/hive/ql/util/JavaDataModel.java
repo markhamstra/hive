@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.hive.ql.util;
 
+import org.apache.hadoop.hive.ql.udf.generic.FastNumericHistogram;
 import org.apache.hadoop.hive.ql.udf.generic.NumDistinctValueEstimator;
 import org.apache.hadoop.hive.ql.udf.generic.NumericHistogram;
 
@@ -161,6 +162,18 @@ public enum JavaDataModel {
   }
 
   public int lengthFor(NumericHistogram histogram) {
+    int length = object();
+    length += primitive1() * 2;       // two int
+    int numBins = histogram.getNumBins();
+    if (numBins > 0) {
+      length += arrayList();   // List<Coord>
+      length += numBins * (object() + primitive2() * 2); // Coord holds two doubles
+    }
+    length += lengthForRandom();      // Random
+    return length;
+  }
+
+  public int lengthFor(FastNumericHistogram histogram) {
     int length = object();
     length += primitive1() * 2;       // two int
     int numBins = histogram.getNumBins();

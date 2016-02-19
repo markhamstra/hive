@@ -353,7 +353,7 @@ public class GenericUDAFPercentileApprox extends AbstractGenericUDAFResolver {
     // inside our own, so that we can also store requested quantile values between calls
     @AggregationType(estimable = true)
     static class PercentileAggBuf extends AbstractAggregationBuffer {
-      NumericHistogram histogram;   // histogram used for quantile approximation
+      FastNumericHistogram histogram;   // histogram used for quantile approximation
       double[] quantiles;           // the quantiles requested
       @Override
       public int estimate() {
@@ -366,7 +366,7 @@ public class GenericUDAFPercentileApprox extends AbstractGenericUDAFResolver {
     @Override
     public AggregationBuffer getNewAggregationBuffer() throws HiveException {
       PercentileAggBuf result = new PercentileAggBuf();
-      result.histogram = new NumericHistogram();
+      result.histogram = new FastNumericHistogram();
       reset(result);
       return result;
     }
