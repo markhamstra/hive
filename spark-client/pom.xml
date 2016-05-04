@@ -22,18 +22,18 @@
   <parent>
     <groupId>org.spark-project.hive</groupId>
     <artifactId>hive</artifactId>
-    <version>1.2.1.spark-csd-6</version>
+    <version>1.2.1.spark-csd-7</version>
   </parent>
 
   <groupId>org.spark-project.hive</groupId>
   <artifactId>spark-client</artifactId>
   <packaging>jar</packaging>
   <name>Spark Remote Client</name>
-  <version>1.2.1.spark-csd-6</version>
+  <version>1.2.1.spark-csd-7</version>
 
   <properties>
     <hive.path.to.root>..</hive.path.to.root>
-    <scala.binary.version>2.10</scala.binary.version>
+    <scala.binary.version>2.11</scala.binary.version>
     <test.redirectToFile>true</test.redirectToFile>
   </properties>
 
