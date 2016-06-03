@@ -1188,6 +1188,18 @@
                 <groupId>org.apache.hadoop</groupId>
                 <artifactId>hadoop-core</artifactId>
               </exclusion>
+              <exclusion>
+		<groupId>com.fasterxml.jackson.core</groupId>
+		<artifactId>jackson-annotations</artifactId>
+              </exclusion>
+              <exclusion>
+		<groupId>com.fasterxml.jackson.core</groupId>
+		<artifactId>jackson-core</artifactId>
+              </exclusion>
+              <exclusion>
+		<groupId>com.fasterxml.jackson.core</groupId>
+		<artifactId>jackson-databind</artifactId>
+              </exclusion>
             </exclusions>
           </dependency>
         </dependencies>
