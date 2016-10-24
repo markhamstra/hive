@@ -19,7 +19,7 @@
   <parent>
     <groupId>org.spark-project.hive</groupId>
     <artifactId>hive</artifactId>
-    <version>1.2.1.spark-csd-7</version>
+    <version>1.2.1.spark2-csd-1</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
@@ -694,6 +694,7 @@
                   <include>org.spark-project.hive.shims:hive-shims-0.23</include>
                   <include>org.spark-project.hive.shims:hive-shims-0.23</include>
                   <include>org.spark-project.hive.shims:hive-shims-common</include>
+                  <include>com.esotericsoftware.kryo:kryo</include>
                   <include>com.google.protobuf:protobuf-java</include>
                 </includes>
               </artifactSet>
@@ -732,15 +733,13 @@
               </artifactSet>
 -->
               <relocations>
-<!--
                 <relocation>
                   <pattern>com.esotericsoftware</pattern>
-                  <shadedPattern>org.spark-project.hive.com.esotericsoftware</shadedPattern>
+                  <shadedPattern>org.apache.hive.com.esotericsoftware</shadedPattern>
                 </relocation>
--->
                 <relocation>
                   <pattern>com.google.protobuf</pattern>
-                  <shadedPattern>org.spark-project.hive.shaded.com.google.protobuf</shadedPattern>
+                  <shadedPattern>org.apache.hive.com.google.protobuf</shadedPattern>
                 </relocation>
               </relocations>
             </configuration>
